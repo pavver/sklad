@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 description = "A catalogue of everything installed on an Arch Linux system, with safe removal"
+repository = "https://github.com/pavver/sklad"
+readme = "README.md"
+keywords = ["arch-linux", "pacman", "packages", "egui", "cleanup"]
+categories = ["command-line-utilities", "os::linux-apis"]
 
 [dependencies]
 eframe = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "links", "wayland", "wgpu", "x11"] }
