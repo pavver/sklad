@@ -175,6 +175,17 @@ fn decode_svg(bytes: &[u8]) -> Option<Decoded> {
     })
 }
 
+/// The icon of the program for the window. It is opaque, so the premultiplied pixels of the renderer
+/// are the plain ones the window system expects.
+pub fn window_icon() -> Option<eframe::egui::IconData> {
+    let decoded = decode_svg(include_bytes!("../assets/sklad.svg"))?;
+    Some(eframe::egui::IconData {
+        rgba: decoded.rgba,
+        width: decoded.size[0] as u32,
+        height: decoded.size[1] as u32,
+    })
+}
+
 fn decode_bitmap(bytes: &[u8]) -> Option<Decoded> {
     let image = image::load_from_memory(bytes).ok()?;
     let image = image.thumbnail(DECODED_SIZE, DECODED_SIZE).into_rgba8();
@@ -192,6 +203,17 @@ fn decode_bitmap(bytes: &[u8]) -> Option<Decoded> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_window_icon_is_a_square_opaque_picture() {
+        let icon = window_icon().unwrap_or_default();
+        assert!(icon.width > 0);
+        assert_eq!(icon.width, icon.height);
+        assert_eq!(icon.rgba.len(), (icon.width * icon.height * 4) as usize);
+        let pixels = icon.rgba.as_chunks::<4>().0;
+        assert!(pixels.iter().all(|pixel| pixel[3] == 255));
+        assert!(pixels.iter().any(|pixel| *pixel != pixels[0]));
+    }
 
     #[test]
     fn a_vector_beats_a_bitmap_and_the_chosen_theme_beats_all() {

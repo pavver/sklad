@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/sklad.svg" width="96" alt="">
+
 # Склад
 
 **Усе, що встановлено в Arch Linux, з будь-якого джерела, в одному місці. І зручне видалення зайвого.**
@@ -75,6 +77,7 @@ git clone https://github.com/pavver/sklad
 cd sklad
 cargo install --path .
 install -Dm644 packaging/sklad.desktop ~/.local/share/applications/sklad.desktop
+install -Dm644 assets/sklad.svg ~/.local/share/icons/hicolor/scalable/apps/sklad.svg
 ```
 
 Або запустіть без встановлення:

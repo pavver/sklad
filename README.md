@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/sklad.svg" width="96" alt="">
+
 # Sklad
 
 **See everything installed on your Arch Linux system, from any source, and remove what you no longer need.**
@@ -75,6 +77,7 @@ git clone https://github.com/pavver/sklad
 cd sklad
 cargo install --path .
 install -Dm644 packaging/sklad.desktop ~/.local/share/applications/sklad.desktop
+install -Dm644 assets/sklad.svg ~/.local/share/icons/hicolor/scalable/apps/sklad.svg
 ```
 
 Or run it without installing:
