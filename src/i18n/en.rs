@@ -1,0 +1,205 @@
+//! The English catalogue.
+
+use super::{DateStyle, Text};
+use crate::model::{Section, SourceKind};
+
+fn counted(count: i64, noun: &str) -> String {
+    let ending = if count == 1 { "" } else { "s" };
+    format!("{count} {noun}{ending}")
+}
+
+fn section(section: Section) -> &'static str {
+    match section {
+        Section::Internet => "Internet",
+        Section::Multimedia => "Multimedia",
+        Section::Graphics => "Graphics",
+        Section::Office => "Office",
+        Section::Development => "Development",
+        Section::Games => "Games",
+        Section::Education => "Education",
+        Section::Science => "Science",
+        Section::System => "System",
+        Section::Utilities => "Utilities",
+        Section::Console => "Console",
+        Section::Libraries => "Libraries",
+        Section::Fonts => "Fonts",
+        Section::Drivers => "Kernel and drivers",
+        Section::Meta => "Metapackages",
+    }
+}
+
+fn source(kind: SourceKind) -> &'static str {
+    match kind {
+        SourceKind::Repo => "Repositories",
+        SourceKind::Aur => "AUR",
+        SourceKind::Flatpak => "Flatpak",
+        SourceKind::Steam => "Steam",
+        SourceKind::Cargo => "Cargo",
+        SourceKind::Node => "Node.js",
+        SourceKind::Python => "Python",
+        SourceKind::Rustup => "Rustup",
+        SourceKind::Manual => "Manual",
+    }
+}
+
+pub static TEXT: Text = Text {
+    app_name: "Sklad",
+    switch_language: "Українська",
+    switch_mark: "УК",
+
+    reading_system: "Reading the system…",
+    nothing_found: "Nothing found. Change the search or the filters.",
+    light_theme: "Light theme",
+    dark_theme: "Dark theme",
+    refresh: "Refresh",
+    search: "Search",
+    clear_search: "Clear search",
+    removed: |title| format!("Removed: {title}"),
+    records: |count| match count {
+        1 => "1 entry".to_owned(),
+        _ => format!("{count} entries"),
+    },
+
+    sort_by: "Sort by:",
+    sort_last_run: "Launch",
+    sort_name: "Name",
+    sort_size: "Size",
+    sort_installed: "Installed",
+    ascending: "Ascending",
+    descending: "Descending",
+    origin_all: "All",
+    origin_explicit: "Explicit",
+    origin_dependency: "Dependencies",
+    origin_orphans: "Orphans",
+
+    all_programs: "All programs",
+    other: "Other",
+    everything: "Everything",
+    source_heading: "Source",
+    all_sources: "All sources",
+    section,
+    source,
+
+    column_program: "Program",
+    column_size: "Size",
+    column_last_run: "Last launch",
+
+    badge_orphan: "Orphan",
+    badge_running: "Running",
+    key_version: "Version",
+    key_package: "Package",
+    key_license: "License",
+    key_developer: "Developer",
+    key_size: "Size",
+    key_installed: "Installed",
+    key_reason: "Reason",
+    key_launch: "Launch",
+    key_groups: "Groups",
+    key_removal: "Removal",
+    reason_explicit: "Explicit",
+    reason_dependency: "As a dependency",
+    heading_description: "Description",
+    heading_launchers: "Launchers",
+    heading_command: "Removal command",
+    needed_by_others: "Other programs need this package. The options are in the removal window.",
+    required_by: |count| format!("Required by ({count})"),
+    depends_on: |count| format!("Depends on ({count})"),
+    and_more: |count| format!("and {count} more"),
+    remove: "Remove",
+    site: "Website",
+    copy: "Copy",
+    by_pacman: "The pacman package manager",
+    by_steam: "The Steam client",
+    by_language_manager: "The package manager of the language",
+    not_removable_here: "Not available from this program",
+    files_to_bin: "Files go to the bin",
+    files_for_good: "Files go for good, a password is needed",
+
+    size_units: ["B", "KB", "MB", "GB", "TB"],
+    decimal_mark: '.',
+    date_style: DateStyle::YearFirst,
+    today: "today",
+    yesterday: "yesterday",
+    days_ago: |days| format!("{} ago", counted(days, "day")),
+    months_ago: |months| format!("{} ago", counted(months, "month")),
+    years_ago: |years| format!("{} ago", counted(years, "year")),
+    running_now: "running now",
+    no_record: "no record",
+    running_now_long: "Running now",
+    no_record_long: "No record. Plasma only sees launches from the menu, the panel and KRunner.",
+    not_tracked_long: "Not tracked for this kind of entry",
+    plasma_log: "Plasma log",
+    last_launch: |when, source| format!("{when}, source: {source}"),
+
+    confirm_title: |title| format!("Remove \"{title}\"?"),
+    other_list_refused: "pacman would remove a different list of packages, so nothing was done. Refresh the catalogue and try again.",
+    pacman_refused: |message| format!("pacman refused:\n{message}"),
+    path_too_close: "This path is too close to the root of the system, so removal is forbidden.",
+    no_password: "No password was entered, nothing was changed.",
+    needed_by_programs: |names| format!("These programs need this package: {names}"),
+    keep_everything: "Keep everything as it is",
+    remove_with_them: "Remove together with them",
+    held_by_meta: |metas, kept| {
+        format!(
+            "The metapackage {metas} holds this program. It will be removed too, but it is only an empty wrapper. The rest of its packages stay in the system. Marked as explicitly installed: {kept}."
+        )
+    },
+    critical_packages: |names| format!("The system may not start without these packages: {names}"),
+    plan_summary: |count, freed| {
+        format!(
+            "{} will be removed, {freed} will be freed. Settings in the home folder stay.",
+            counted(count as i64, "package")
+        )
+    },
+    through_manager: |name| format!("Will be removed through {name}."),
+    flatpak_note: "The program will be removed through Flatpak. Its data in the home folder stays.",
+    steam_note: "A Steam window will open. Confirm the removal there, then refresh the catalogue.",
+    cargo_note: "The program will be removed through cargo.",
+    files_go_to_bin: "The files will be moved to the bin:",
+    files_go_for_good: "The files will be deleted for good:",
+    not_a_package: "This is not a package: the files can only be restored from a snapshot or a backup.",
+    checking: "Checking with pacman…",
+    removing: "Removing…",
+    done: "Done",
+    failed: |message| format!("Could not remove: {message}. See the output above."),
+    close: "Close",
+    cancel: "Cancel",
+    copy_command: "Copy command",
+    still_running: "The program is running. Close it before removing.",
+    understood: "I understand the consequences",
+    exit_code: |code| format!("exit code {code}"),
+    interrupted: "the process was interrupted",
+    empty_command: "empty command",
+
+    steam_component: "Steam component",
+    steam_game: "Steam game",
+    programs: |names| format!("Programs: {names}"),
+    loose_file: |path| format!("A file outside package managers: {path}"),
+    loose_launcher: |path| format!("A launcher outside package managers: {path}"),
+    stray_python: |path| {
+        format!(
+            "This record lies in the system Python outside the package manager: {path}. It may be left over from an update, so automatic removal is off."
+        )
+    },
+    python_tool: |manager| format!("A Python tool in its own environment, installed through {manager}"),
+    uv_python: "A Python interpreter installed through uv",
+    rust_toolchain: "A Rust toolchain: the compiler, cargo and the standard library",
+    default_toolchain: "This is the default toolchain: cargo and rustc stop working without it.",
+};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn english_counts_read_naturally() {
+        assert_eq!((TEXT.days_ago)(1), "1 day ago");
+        assert_eq!((TEXT.days_ago)(5), "5 days ago");
+        assert_eq!((TEXT.records)(1), "1 entry");
+        assert_eq!((TEXT.records)(2), "2 entries");
+        assert_eq!(
+            (TEXT.plan_summary)(1, "1.0 MB"),
+            "1 package will be removed, 1.0 MB will be freed. Settings in the home folder stay."
+        );
+    }
+}

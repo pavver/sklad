@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Sklad
+Name[uk]=Склад
+Comment=Catalogue of everything installed, with safe removal
+Comment[uk]=Каталог усього встановленого з безпечним видаленням
+Exec=sklad
+Icon=system-software-install
+Terminal=false
+Categories=System;PackageManager;

@@ -1,0 +1,25 @@
+[package]
+name = "sklad"
+version = "0.1.0"
+edition = "2024"
+description = "A catalogue of everything installed on an Arch Linux system, with safe removal"
+
+[dependencies]
+eframe = { version = "0.37", default-features = false, features = ["accesskit", "clipboard", "default_fonts", "links", "wayland", "wgpu", "x11"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+resvg = "0.45"
+rusqlite = { version = "0.37", features = ["bundled"] }
+quick-xml = "0.38"
+serde_json = "1"
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
+
+[lints.rust]
+dead_code = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
