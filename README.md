@@ -59,3 +59,7 @@ Window tests use a fake backend, so they cannot remove a real package. Screensho
 
 The interface follows the Operator UI design system. Fonts: Cascadia Mono (SIL OFL 1.1) and Phosphor (MIT),
 their licenses are in `assets/`.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Changes come through pull requests.

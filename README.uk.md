@@ -58,3 +58,7 @@ cargo test -- --ignored --test-threads=1   # лише читає живу сис
 
 Інтерфейс побудовано за дизайн-системою Operator UI. Шрифти: Cascadia Mono (SIL OFL 1.1)
 і Phosphor (MIT), ліцензії лежать в `assets/`.
+
+## Ліцензія
+
+MIT, див. [LICENSE](LICENSE). Зміни приймаються через pull request.
