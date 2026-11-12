@@ -9,6 +9,10 @@ pub const ADD_REPOSITORY: &str = r"grep -q '^\[sklad\]' /etc/pacman.conf ||
 pub const INSTALL: &str = "sudo pacman -Sy sklad";
 pub const FROM_SOURCE: &str = "cargo install --git https://github.com/pavver/sklad";
 
+/// Each page in its language: the name in that language, then in English, so a search finds it
+/// either way. English needs no second name.
+pub const PAGES: [(&str, &str); 2] = [("Українська (Ukrainian)", "uk.html"), ("English", "./")];
+
 pub const REPOSITORY: &str = "https://github.com/pavver/sklad";
 pub const DESIGN_SYSTEM: &str = "https://github.com/pavver/operator-design-system";
 
@@ -27,9 +31,8 @@ pub struct Feature {
 pub struct Text {
     pub name: &'static str,
     pub tagline: &'static str,
-    /// The page in the other language.
-    pub other_page: &'static str,
-    pub other_language: &'static str,
+    /// The name of this page in `PAGES`.
+    pub language_name: &'static str,
     pub dark_mode: &'static str,
     pub headline: &'static str,
     pub lead: &'static str,
@@ -59,8 +62,7 @@ pub struct Text {
 pub const EN: Text = Text {
     name: "Sklad",
     tagline: "Everything installed on Arch Linux, in one list",
-    other_page: "uk.html",
-    other_language: "Українська",
+    language_name: "English",
     dark_mode: "Dark mode",
     headline: "Everything installed on Arch Linux, in one list. Remove what you no longer use.",
     lead: "Package managers only tell you what they installed themselves. Sklad puts pacman and AUR packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, and loose files in one list. Sort it by last launch, read what each entry is, and uninstall it with a command you see before it runs.",
@@ -136,8 +138,7 @@ pub const EN: Text = Text {
 pub const UK: Text = Text {
     name: "Склад",
     tagline: "Усе встановлене в Arch Linux одним списком",
-    other_page: "./",
-    other_language: "English",
+    language_name: "Українська (Ukrainian)",
     dark_mode: "Темна тема",
     headline: "Усе встановлене в Arch Linux одним списком. Видаляйте те, чим не користуєтеся.",
     lead: "Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman і AUR, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.",

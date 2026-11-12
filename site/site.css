@@ -25,3 +25,4 @@ body { background: #181818; }
 .site-answer { padding: 0 var(--op-dim-margin-screen) var(--op-dim-pad-card); color: var(--op-text-secondary); }
 .site-footer { width: 100%; max-width: calc(var(--op-du) * 240); margin: 0 auto; padding: var(--op-dim-margin-screen); }
 .site-muted { color: var(--op-text-secondary); }
+.site-language { width: calc(var(--op-du) * 64); }

@@ -6,7 +6,7 @@ mod text;
 use leptos::prelude::*;
 use operator_ui::prelude::*;
 use operator_ui::tokens::icons;
-use text::{ADD_REPOSITORY, DESIGN_SYSTEM, EN, FROM_SOURCE, INSTALL, REPOSITORY, TRUST_KEY, Text, UK};
+use text::{ADD_REPOSITORY, DESIGN_SYSTEM, EN, FROM_SOURCE, INSTALL, PAGES, REPOSITORY, TRUST_KEY, Text, UK};
 
 /// The texts for the language of the page.
 fn page_text() -> &'static Text {
@@ -27,6 +27,19 @@ fn prefers_dark() -> bool {
         .is_none_or(|m| !m.matches())
 }
 
+/// Opens the page of the language chosen by its name.
+fn open_page(name: String) {
+    let page = PAGES
+        .iter()
+        .find(|(known, _)| *known == name)
+        .map(|(_, page)| *page);
+    if let (Some(page), Some(window)) = (page, web_sys::window())
+        && page_text().language_name != name
+    {
+        let _ = window.location().set_href(page);
+    }
+}
+
 #[component]
 fn Command(caption: &'static str, code: &'static str) -> impl IntoView {
     view! {
@@ -41,6 +54,7 @@ fn Command(caption: &'static str, code: &'static str) -> impl IntoView {
 fn Page() -> impl IntoView {
     let text = page_text();
     let dark = RwSignal::new(prefers_dark());
+    let language = RwSignal::new(text.language_name.to_owned());
     let features = text
         .features
         .iter()
@@ -68,7 +82,13 @@ fn Page() -> impl IntoView {
         .collect_view();
     let actions = ViewFn::from(move || {
         view! {
-            <ActionButton text=text.other_language href=text.other_page/>
+            <div class="site-language">
+                <Combobox
+                    options=PAGES.iter().map(|(name, _)| (*name).to_owned()).collect()
+                    selected=language
+                    on_select=Callback::new(open_page)
+                />
+            </div>
             <ThemeToggle
                 dark=dark
                 on_toggle=Callback::new(move |v: bool| dark.set(v))
