@@ -180,6 +180,8 @@ pub struct Text {
     pub depends_on: fn(usize) -> String,
     pub and_more: fn(usize) -> String,
     pub remove: &'static str,
+    pub launch: &'static str,
+    pub launch_failed: fn(&str) -> String,
     pub site: &'static str,
     pub copy: &'static str,
     pub by_pacman: &'static str,

@@ -2,6 +2,7 @@
 
 pub mod i18n;
 pub mod icons;
+pub mod launch;
 pub mod model;
 pub mod plan;
 pub mod remove;

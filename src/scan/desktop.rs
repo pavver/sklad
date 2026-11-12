@@ -1,7 +1,7 @@
 //! Launcher files (`.desktop`): the name, the icon and the section of a program with a window.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::i18n::Lang;
 use crate::model::Section;
@@ -10,6 +10,8 @@ use crate::model::Section;
 pub struct Launcher {
     /// The file name without `.desktop`: the key Plasma records launches under.
     pub id: String,
+    /// Where the file lies; empty for a launcher parsed from text alone.
+    pub path: PathBuf,
     pub name: String,
     pub comment: Option<String>,
     pub icon: Option<String>,
@@ -21,7 +23,9 @@ pub struct Launcher {
 pub fn read(path: &Path, lang: Lang) -> Option<Launcher> {
     let bytes = fs::read(path).ok()?;
     let id = path.file_stem()?.to_string_lossy().into_owned();
-    parse(&id, &String::from_utf8_lossy(&bytes), lang)
+    let mut launcher = parse(&id, &String::from_utf8_lossy(&bytes), lang)?;
+    launcher.path = path.to_path_buf();
+    Some(launcher)
 }
 
 pub fn parse(id: &str, text: &str, lang: Lang) -> Option<Launcher> {

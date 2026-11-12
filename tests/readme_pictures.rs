@@ -12,7 +12,7 @@ use eframe::egui::{self, Vec2};
 use egui_kittest::kittest::{By, Queryable};
 use egui_kittest::{Harness, HarnessBuilder};
 use sklad::i18n::{Choice, Lang};
-use sklad::model::{Access, Evidence, Item, Reason, Removal, Section, Source, Usage};
+use sklad::model::{Access, Evidence, Item, Launch, Reason, Removal, Section, Source, Usage};
 use sklad::plan::{Node, PackageDb};
 use sklad::remove::{Backend, Event, Failure, Outcome, Spec};
 use sklad::scan::Catalog;
@@ -193,6 +193,9 @@ fn item_of(entry: Entry, lang: Lang) -> Item {
         usage: entry.usage,
         icon: None,
         launchers: Vec::new(),
+        launch: Some(Launch::Desktop(
+            format!("/usr/share/applications/{}.desktop", entry.package).into(),
+        )),
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
@@ -226,6 +229,7 @@ fn toolchain(title: &str, name: &str, version: &str, lang: Lang) -> Item {
         usage: Usage::NotTracked,
         icon: None,
         launchers: Vec::new(),
+        launch: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),

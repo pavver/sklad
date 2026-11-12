@@ -11,13 +11,14 @@ pub mod view;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use eframe::egui::{self, CentralPanel, Frame, Id, Panel, ScrollArea, Ui, vec2};
 
 use crate::i18n::{Choice, Lang, Text};
+use crate::launch;
 use crate::model::{Item, Section, SourceKind};
-use crate::remove::{Backend, command_line};
+use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
@@ -27,7 +28,7 @@ use operator::icon::{self, Icon};
 use operator::layout::{ListItem, header, toolbar};
 use operator::search_field::SearchField;
 use operator::segmented::{Segment, natural_width, segmented};
-use operator::state::{Activity, Outcome, result_hold};
+use operator::state::{Activity, Look, Outcome, result_hold};
 use operator::tokens::{DARK, LIGHT, Palette, dim, du, install_fonts};
 use pictures::Pictures;
 use view::{OriginFilter, Scope, View};
@@ -39,6 +40,13 @@ pub type Scanner = Arc<dyn Fn(Lang) -> Catalog + Send + Sync>;
 struct Selection {
     id: String,
     command: Option<String>,
+}
+
+/// A launch under way: whose it is and what its command reports.
+struct Launching {
+    title: String,
+    events: Receiver<Event>,
+    said: Option<String>,
 }
 
 pub struct App {
@@ -53,6 +61,10 @@ pub struct App {
     dialog: Option<Dialog>,
     toasts: Toasts,
     refresh: Activity,
+    launching: Option<Launching>,
+    /// The launch the card shows, and the item it belongs to.
+    launch: Activity,
+    launched: Option<String>,
     dark: bool,
     applied: Option<bool>,
     split: f32,
@@ -125,6 +137,9 @@ impl App {
             dialog: None,
             toasts: Toasts::default(),
             refresh: Activity::default(),
+            launching: None,
+            launch: Activity::default(),
+            launched: None,
             dark,
             applied: None,
             split: SPLIT,
@@ -186,6 +201,53 @@ impl App {
                 self.select(&id);
             }
         }
+    }
+
+    fn start_launch(&mut self, item: &Item, now: f64) {
+        let Some(how) = &item.launch else {
+            return;
+        };
+        if self.launching.is_some() {
+            return;
+        }
+        self.launching = Some(Launching {
+            title: item.title.clone(),
+            events: self.backend.run(&launch::spec(how)),
+            said: None,
+        });
+        self.launch = Activity::default();
+        self.launch.start(now);
+        self.launched = Some(item.id.clone());
+    }
+
+    /// Takes what the launch command reported. It keeps the button pending, so it repaints.
+    fn receive_launch(&mut self, ctx: &egui::Context, now: f64) {
+        let text = self.text();
+        let Some(launching) = &mut self.launching else {
+            return;
+        };
+        let mut finished = None;
+        while let Ok(event) = launching.events.try_recv() {
+            match event {
+                Event::Line(line) => launching.said = Some(line),
+                Event::Finished(outcome) => finished = Some(outcome),
+            }
+        }
+        let Some(outcome) = finished else {
+            ctx.request_repaint_after(Duration::from_millis(50));
+            return;
+        };
+        if outcome == remove::Outcome::Done {
+            self.launch.finish(Outcome::Success, now);
+        } else {
+            self.launch.finish(Outcome::Error, now);
+            let mut message = (text.launch_failed)(&launching.title);
+            if let Some(said) = &launching.said {
+                message = format!("{message}: {said}");
+            }
+            self.toasts.message(Tone::Error, message);
+        }
+        self.launching = None;
     }
 
     fn selected_item(&self) -> Option<&Item> {
@@ -430,8 +492,15 @@ impl App {
         let Some(item) = self.selected_item().cloned() else {
             return;
         };
+        let time = ui.input(|input| input.time);
+        let launch = if self.launched.as_deref() == Some(item.id.as_str()) {
+            self.launch.look(time, result_hold())
+        } else {
+            Look::IDLE
+        };
         let card = detail::Card {
             item: &item,
+            launch,
             command: self
                 .selection
                 .as_ref()
@@ -440,6 +509,7 @@ impl App {
             text: self.text(),
         };
         match detail::show(ui, &card, &mut self.pictures, palette) {
+            Some(detail::Action::Launch) => self.start_launch(&item, time),
             Some(detail::Action::Remove) => {
                 if let Some(catalog) = &self.catalog {
                     self.dialog = Some(Dialog::open(
@@ -469,6 +539,7 @@ impl App {
         }
         let time = ctx.input(|input| input.time);
         self.receive_scan(time);
+        self.receive_launch(&ctx, time);
         self.pictures.receive(&ctx);
         let now = unix_now();
 

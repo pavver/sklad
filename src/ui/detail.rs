@@ -8,12 +8,14 @@ use super::operator::code::CodeBlock;
 use super::operator::content::{ChipColor, Property, avatar, chip, chip_set, property_list};
 use super::operator::icon;
 use super::operator::layout::section_title;
+use super::operator::state::Look;
 use super::operator::tokens::{Palette, Type, dim, du, text};
 use super::pictures::Pictures;
 use crate::i18n::Text;
 use crate::model::{Access, Item, Reason, Removal, Usage};
 
 pub enum Action {
+    Launch,
     Remove,
     Open(String),
     /// Go to another package by name.
@@ -66,6 +68,8 @@ pub struct Card<'a> {
     pub item: &'a Item,
     pub command: Option<&'a str>,
     pub now: i64,
+    /// How the last launch of this item is going.
+    pub launch: Look,
     pub text: &'static Text,
 }
 
@@ -204,6 +208,15 @@ pub fn show(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Pal
                         wrapped(ui, item.summary.clone(), Type::Body, palette.text_primary);
                     }
                     ui.horizontal_wrapped(|ui| {
+                        if item.launch.is_some()
+                            && ActionButton::new(text.launch)
+                                .icon(icon::PLAY_ARROW)
+                                .look(card.launch)
+                                .show(ui, palette)
+                                .clicked()
+                        {
+                            action = Some(Action::Launch);
+                        }
                         let remove = ActionButton::new(text.remove)
                             .icon(icon::DELETE)
                             .dangerous(true)

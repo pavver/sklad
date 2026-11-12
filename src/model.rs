@@ -154,6 +154,15 @@ pub enum FlatpakScope {
     User,
 }
 
+/// How a program with a window is started.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Launch {
+    /// Its launcher file, started the way the menu starts it.
+    Desktop(PathBuf),
+    /// A game, started by the Steam client.
+    Steam { app_id: String },
+}
+
 /// How the item leaves the system. Pacman items are planned against the package graph.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Removal {
@@ -204,6 +213,8 @@ pub struct Item {
     pub usage: Usage,
     pub icon: Option<PathBuf>,
     pub launchers: Vec<String>,
+    /// `None` for anything without a window to open.
+    pub launch: Option<Launch>,
     pub groups: Vec<String>,
     pub depends: Vec<String>,
     pub required_by: Vec<String>,

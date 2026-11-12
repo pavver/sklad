@@ -116,6 +116,8 @@ pub static TEXT: Text = Text {
     depends_on: |count| format!("Залежить від ({count})"),
     and_more: |count| format!("і ще {count}"),
     remove: "Видалити",
+    launch: "Запустити",
+    launch_failed: |title| format!("Не вдалося запустити «{title}»"),
     site: "Сайт",
     copy: "Скопіювати",
     by_pacman: "Менеджер пакетів pacman",

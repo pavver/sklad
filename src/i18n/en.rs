@@ -105,6 +105,8 @@ pub static TEXT: Text = Text {
     depends_on: |count| format!("Depends on ({count})"),
     and_more: |count| format!("and {count} more"),
     remove: "Remove",
+    launch: "Launch",
+    launch_failed: |title| format!("Could not launch \"{title}\""),
     site: "Website",
     copy: "Copy",
     by_pacman: "The pacman package manager",

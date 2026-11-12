@@ -54,6 +54,7 @@ imported!(
     MOVIE = "movie",
     OPEN_IN_NEW = "open_in_new",
     PALETTE = "palette",
+    PLAY_ARROW = "play_arrow",
     PUBLIC = "public",
     SCHOOL = "school",
     SCIENCE = "science",

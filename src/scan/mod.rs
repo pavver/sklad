@@ -15,7 +15,7 @@ use std::process::Command;
 
 use crate::i18n::{Lang, Text};
 use crate::icons::IconIndex;
-use crate::model::{Access, Evidence, Item, Removal, Section, Source, Usage};
+use crate::model::{Access, Evidence, Item, Launch, Removal, Section, Source, Usage};
 use crate::plan::PackageDb;
 use appstream::Metainfo;
 use desktop::Launcher;
@@ -79,6 +79,7 @@ fn blank(id: String, package: String, source: Source, removal: Removal) -> Item 
         usage: Usage::NotTracked,
         icon: None,
         launchers: Vec::new(),
+        launch: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
@@ -125,6 +126,9 @@ fn dress(item: &mut Item, launchers: &[Launcher], info: &Metainfo, icons: &IconI
         item.icon = main.icon.as_deref().and_then(|name| icons.find(name));
         if let Some(comment) = &main.comment {
             item.summary = comment.clone();
+        }
+        if !main.path.as_os_str().is_empty() {
+            item.launch = Some(Launch::Desktop(main.path.clone()));
         }
     }
     item.launchers = launchers
@@ -288,6 +292,9 @@ fn steam_items(context: &Context<'_>) -> Vec<Item> {
             } else {
                 item.section = Section::Games;
                 item.summary = context.lang.text().steam_game.to_owned();
+                item.launch = Some(Launch::Steam {
+                    app_id: game.app_id.clone(),
+                });
                 item.usage = game.last_played.map_or(Usage::NoRecord, |at| Usage::Last {
                     at,
                     by: Evidence::Steam,

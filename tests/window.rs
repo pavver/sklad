@@ -12,7 +12,7 @@ use eframe::egui::accesskit::Role;
 use egui_kittest::kittest::{By, NodeT, Queryable};
 use egui_kittest::{Harness, HarnessBuilder};
 use sklad::i18n::{Choice, Lang};
-use sklad::model::{Evidence, Item, Reason, Removal, Section, Source, Usage};
+use sklad::model::{Evidence, Item, Launch, Reason, Removal, Section, Source, Usage};
 use sklad::plan::{Node, PackageDb};
 use sklad::remove::{Backend, Event, Failure, Outcome, Spec};
 use sklad::scan::Catalog;
@@ -90,6 +90,7 @@ fn item(package: &str, title: &str, section: Section, usage: Usage) -> Item {
         usage,
         icon: None,
         launchers: Vec::new(),
+        launch: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
@@ -1002,5 +1003,68 @@ fn text_of_the_card_can_be_selected_and_copied() {
     let licence = harness.get_by_label("GPL-3.0").rect();
     assert_eq!(select_and_copy(&mut harness, licence).as_deref(), Some("GPL-3.0"));
     let summary = harness.get_by_label("Опис Редактор").rect();
-    assert_eq!(select_and_copy(&mut harness, summary).as_deref(), Some("Опис Редактор"));
+    assert_eq!(
+        select_and_copy(&mut harness, summary).as_deref(),
+        Some("Опис Редактор")
+    );
+}
+
+fn window_with_a_launcher(backend: Arc<FakeBackend>) -> Harness<'static, App> {
+    let scanner: Scanner = Arc::new(|_| {
+        let mut catalog = catalog();
+        for item in &mut catalog.items {
+            if item.package == "editor" {
+                item.launch = Some(Launch::Desktop(PathBuf::from(
+                    "/usr/share/applications/editor.desktop",
+                )));
+            }
+        }
+        catalog
+    });
+    window_speaking(backend, Vec2::new(1360.0, 1200.0), scanner, Lang::Uk)
+}
+
+#[test]
+fn the_card_launches_the_program_through_its_launcher() {
+    let backend = FakeBackend::new(Outcome::Done);
+    let mut harness = window_with_a_launcher(Arc::clone(&backend));
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Row, "Програвач").click();
+    settle(&mut harness);
+    assert!(
+        harness.query_by_label("Запустити").is_none(),
+        "a package without a launcher has nothing to launch"
+    );
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    harness.get_by_label("Запустити").click();
+    settle(&mut harness);
+    let argv: Vec<Vec<String>> = backend.commands().into_iter().map(|spec| spec.argv).collect();
+    assert_eq!(
+        argv,
+        [["gio", "launch", "/usr/share/applications/editor.desktop"]]
+    );
+}
+
+#[test]
+fn a_failed_launch_says_so() {
+    let backend = FakeBackend::new(Outcome::Failed(Failure::Code(1)));
+    let mut harness = window_with_a_launcher(backend);
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    harness.get_by_label("Запустити").click();
+    let mut said = false;
+    for _ in 0..40 {
+        harness.step();
+        sleep(Duration::from_millis(20));
+        if harness
+            .query_by_label_contains("Не вдалося запустити «Редактор»")
+            .is_some()
+        {
+            said = true;
+            break;
+        }
+    }
+    assert!(said, "a toast says the launch failed");
 }

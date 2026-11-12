@@ -195,6 +195,7 @@ mod tests {
             usage,
             icon: None,
             launchers: Vec::new(),
+            launch: None,
             groups: Vec::new(),
             depends: Vec::new(),
             required_by: Vec::new(),
