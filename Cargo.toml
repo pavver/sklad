@@ -17,7 +17,7 @@ resvg = "0.45"
 rusqlite = { version = "0.37", features = ["bundled"] }
 quick-xml = "0.38"
 serde_json = "1"
-operator-ui-tokens = { git = "https://github.com/pavver/operator-design-system", rev = "c69e965644fc1825a3f25eecb1caedf27e807c2d" }
+operator-ui-tokens = { git = "https://github.com/pavver/operator-design-system", rev = "66afa5e61508a1b51fd98f59c211f820348d2b84" }
 
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
