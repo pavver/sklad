@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pavver.github.io/sklad/sitemap.xml

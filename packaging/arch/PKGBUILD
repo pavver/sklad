@@ -28,6 +28,8 @@ optdepends=(
   'libxrandr: run under X11'
   'libxi: run under X11'
 )
+# Link-time optimisation of C turns the bundled SQLite into bitcode the Rust linker cannot use.
+options=('!lto' '!debug')
 source=("$pkgname::git+https://github.com/pavver/sklad.git#tag=v$pkgver")
 sha256sums=('SKIP')
 

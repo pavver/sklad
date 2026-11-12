@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Склад: усе встановлене в Arch Linux одним списком і видалення непотрібного</title>
+  <meta name="description" content="Склад — програма для Arch Linux, що показує всі пакети pacman і AUR, програми Flatpak, ігри Steam та інструменти розробника в одному списку, підказує, коли кожну програму запускали востаннє, і безпечно видаляє непотрібне командою, яку видно наперед.">
+  <link rel="canonical" href="https://pavver.github.io/sklad/uk.html">
+  <link rel="alternate" hreflang="en" href="https://pavver.github.io/sklad/">
+  <link rel="alternate" hreflang="uk" href="https://pavver.github.io/sklad/uk.html">
+  <link rel="alternate" hreflang="x-default" href="https://pavver.github.io/sklad/">
+  <link rel="icon" href="sklad.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Склад">
+  <meta property="og:title" content="Склад: усе встановлене в Arch Linux одним списком">
+  <meta property="og:description" content="pacman, AUR, Flatpak, Steam та інструменти розробника в одному каталозі, з сортуванням за останнім запуском і безпечним видаленням.">
+  <meta property="og:url" content="https://pavver.github.io/sklad/uk.html">
+  <meta property="og:image" content="https://pavver.github.io/sklad/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:locale:alternate" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Склад",
+    "alternateName": "Sklad",
+    "inLanguage": "uk",
+    "description": "Програма для Arch Linux, що показує все встановлене з будь-якого джерела і видаляє непотрібне.",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "Arch Linux",
+    "softwareVersion": "0.2.0",
+    "license": "https://opensource.org/licenses/MIT",
+    "url": "https://pavver.github.io/sklad/uk.html",
+    "downloadUrl": "https://github.com/pavver/sklad/releases",
+    "codeRepository": "https://github.com/pavver/sklad",
+    "screenshot": "https://pavver.github.io/sklad/uk-catalogue.png",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "UAH" }
+  }
+  </script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="uk.html"><img src="sklad.svg" alt="" width="28" height="28"> Склад</a>
+    <nav><a href="#install">Встановлення</a><a href="#faq">Питання</a><a href="https://github.com/pavver/sklad">GitHub</a><a href="./" hreflang="en" lang="en">English</a></nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Усе встановлене в Arch Linux одним списком. Видаляйте те, чим не користуєтеся.</h1>
+      <p class="lead">Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman і AUR, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.</p>
+      <p class="actions"><a class="button" href="#install">Встановити з репозиторію pacman</a><a class="link" href="https://github.com/pavver/sklad">Код на GitHub</a></p>
+      <img class="shot" src="uk-catalogue.png" alt="Вікно Складу: список встановлених програм з іконками, датою встановлення, розміром і останнім запуском та картка вибраної програми" width="1360" height="1040">
+    </section>
+
+    <section>
+      <h2>Що він уміє</h2>
+      <ul class="features">
+        <li><strong>Один каталог</strong> програм, консольних інструментів, бібліотек, шрифтів, драйверів і метапакетів з усіх джерел.</li>
+        <li><strong>Останній запуск</strong> за журналом KDE Plasma і даними Steam, щоб знайти те, чим давно не користуєтеся.</li>
+        <li><strong>Непотрібні залежності</strong> й пакети, встановлені вами, окремо.</li>
+        <li><strong>Безпечне видалення:</strong> список спершу перевіряє <code>pacman -Rp</code>, а точна команда завжди на екрані.</li>
+        <li><strong>Видалення з метапакета:</strong> програма зникає, решта метапакета лишається.</li>
+        <li><strong>Запуск</strong> програми з її картки та копіювання будь-якого тексту.</li>
+        <li>Українська та англійська мови, світла й темна теми.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Безпечне видалення</h2>
+      <img class="shot" src="uk-removal.png" alt="Вікно видалення Складу для програми з метапакета: список пакетів і команда" width="1360" height="1040" loading="lazy">
+      <p>Список пакетів рахується на графі залежностей за тими ж правилами, що й у <code>pacman -Rs</code>, а потім його перевіряє <code>pacman -Rp</code>. Якщо списки різняться, нічого не відбувається. Важливі системні пакети й файли поза домашньою текою потребують окремого підтвердження.</p>
+    </section>
+
+    <section id="install">
+      <h2>Встановлення</h2>
+      <p>Один раз довірте ключ, яким підписано пакети:</p>
+      <pre><code>curl -sL https://pavver.github.io/sklad/sklad.asc | sudo pacman-key --add -
+sudo pacman-key --lsign-key EB0FE0C7F0FEBBD1A40F8F93A7A3ED14D1C98D8D</code></pre>
+      <p>Додайте репозиторій у <code>/etc/pacman.conf</code>:</p>
+      <pre><code>[sklad]
+Server = https://pavver.github.io/sklad/$arch</code></pre>
+      <p>І встановіть як звичайний пакет; оновлення прийдуть разом із <code>pacman -Syu</code>:</p>
+      <pre><code>sudo pacman -Sy sklad</code></pre>
+      <p>Або зберіть із коду: <code>cargo install --git https://github.com/pavver/sklad</code>.</p>
+    </section>
+
+    <section id="faq">
+      <h2>Питання</h2>
+      <h3>Як знайти непотрібні пакети в Arch Linux?</h3>
+      <p><code>pacman -Qdtq</code> покаже осиротілі залежності, але не програми, які ви встановили й закинули. Склад сортує все за останнім запуском, який записали Plasma і Steam, тож програми, яких ви не відкривали місяцями, будуть угорі.</p>
+      <h3>Чим він відрізняється від Pamac, Octopi чи BleachBit?</h3>
+      <p>Pamac і Octopi керують пакетами pacman, BleachBit чистить кеші. Склад показує встановлене через pacman, AUR, Flatpak, Steam і менеджери пакетів мов в одному списку та видаляє кожен запис тим менеджером, який його встановив.</p>
+      <h3>Чи потрібна KDE Plasma?</h3>
+      <p>Програму перевірено в KDE Plasma на Wayland. Останній запуск програм береться з журналу Plasma, тож в інших середовищах він відомий лише для ігор Steam; каталог і видалення від середовища не залежать.</p>
+      <h3>Чи це безпечно?</h3>
+      <p>Склад нічого не видаляє, не показавши команду, а pacman перевіряє список ще до запуску. Це рання версія, тож читайте команду, перш ніж підтвердити.</p>
+    </section>
+  </main>
+
+  <footer><p>Ліцензія MIT · <a href="https://github.com/pavver/sklad">github.com/pavver/sklad</a> · Інтерфейс на дизайн-системі <a href="https://github.com/pavver/operator-design-system">Operator UI</a></p></footer>
+</body>
+</html>

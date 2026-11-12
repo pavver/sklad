@@ -8,8 +8,9 @@ use std::path::{Path, PathBuf};
 const SKIPPED: [&str; 2] = [".git", "target"];
 
 /// Text files that the checks read; binary assets have nothing to find.
-const TEXT: [&str; 11] = [
-    "rs", "toml", "md", "py", "svg", "desktop", "xml", "yml", "yaml", "lock", "sh",
+const TEXT: [&str; 15] = [
+    "rs", "toml", "md", "py", "svg", "desktop", "xml", "yml", "yaml", "lock", "sh", "html", "css", "txt",
+    "asc",
 ];
 
 fn files(folder: &Path, found: &mut Vec<PathBuf>) -> std::io::Result<()> {
