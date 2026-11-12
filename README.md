@@ -100,4 +100,4 @@ Changes come through pull requests, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT](LICENSE). Fonts: Cascadia Mono (SIL OFL 1.1) and Phosphor (MIT), their licenses are in `assets/`.
+[MIT](LICENSE). The interface follows the [Operator UI](https://github.com/pavver/operator-design-system) design system. Third-party assets (the Cascadia Code font, Material Symbols icons, the day/night toggle) keep their own licenses, listed in [NOTICE.md](NOTICE.md).

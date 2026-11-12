@@ -1,0 +1,63 @@
+# Agent Instructions
+
+Rules for AI agents contributing to this repository.
+The interface follows the [Operator UI design system](https://github.com/pavver/operator-design-system); most of these rules come from that project.
+
+## Scope
+
+* sklad implements the design system in egui in [src/ui/operator](src/ui/operator); the rest of [src/ui](src/ui) only composes those components.
+* Do not invent a component, a variant, or a token the design system does not have.
+  Report the gap instead, and compose from existing components only when the maintainer agrees.
+* Token values come from the `operator-ui-tokens` crate, pinned to a commit in [Cargo.toml](Cargo.toml).
+  Moving to a newer commit of the design system is a change of its own.
+
+## Draft components
+
+The design system marks these components as Draft, and sklad uses them anyway:
+
+* `DataTable` ([src/ui/operator/data_table.rs](src/ui/operator/data_table.rs)): the catalogue table.
+* `PropertyList` (in [src/ui/operator/content.rs](src/ui/operator/content.rs)): the facts on the card.
+* `Toolbar` (in [src/ui/operator/layout.rs](src/ui/operator/layout.rs)): the bar above the table; its overflow menu is not ported.
+
+Their specifications may still change, so expect to rework them when the design system marks them Reviewed.
+
+## Language and Formatting
+
+* All files are written in English.
+  The exceptions are the Ukrainian interface text in [src/i18n](src/i18n), the Ukrainian test strings that check it, and [README.uk.md](README.uk.md).
+* Every word of the interface lives in [src/i18n](src/i18n), in both languages.
+* In Markdown files, every sentence is on its own line.
+* Files are referenced with relative paths.
+
+## Units
+
+* Spatial values use Design Units (`1 DU = 4 logical points`) through `du()` and the `dim` tokens.
+* Font sizes and line heights use Type Units (`1 TU = 1 logical point`) through the `Type` scale.
+* Raw point values are prohibited in component code.
+  The only exceptions are the unit definitions themselves and geometry measured at runtime (pointer positions, element sizes).
+
+## Geometry
+
+* Corner radius is `0 DU` unless the component specification lists a round exception.
+* Standard border `0.25 DU`, emphasis border `0.5 DU`, always drawn inside the bounds.
+
+## Icons
+
+* Use Material Symbols Sharp.
+  Icons of the design system come from the tokens crate; any other one is imported into [assets/icons](assets/icons) through [assets/icons/icons.toml](assets/icons/icons.toml) and [scripts/import_icons.py](scripts/import_icons.py).
+* `python3 scripts/import_icons.py --check` must pass.
+
+## Behavior
+
+* Follow the states specification of the design system (`docs/foundations/states.md`) for every interactive component.
+* Pending blocks input, results do not, errors roll back with the same animation as the forward change.
+
+## Rust
+
+* No `.unwrap()` or `.expect()`.
+* Run `cargo fmt`, `cargo clippy --all-targets` and `cargo test` before committing; the code must be warning-free.
+
+## Git
+
+* Conventional Commits in English.
+* No automated or AI signatures in commit messages.

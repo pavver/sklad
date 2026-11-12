@@ -302,10 +302,14 @@ fn settle(harness: &mut Harness<'_, App>) {
 
 fn click(harness: &mut Harness<'_, App>, label: &str) {
     settle(harness);
-    if let Some(button) = harness
-        .get_all(By::new().role(Role::Button).label_contains(label))
-        .next()
-    {
+    let target = [Role::Button, Role::Row, Role::Switch]
+        .into_iter()
+        .find_map(|role| {
+            harness
+                .query_all(By::new().role(role).label_contains(label))
+                .next()
+        });
+    if let Some(button) = target {
         button.click();
     }
     settle(harness);
@@ -358,8 +362,8 @@ fn pictures(lang: Lang) -> Result<(), String> {
     save(&mut harness, &format!("{code}-removal.png"))?;
 
     let mut harness = window(lang);
-    click(&mut harness, text.light_theme);
-    click(&mut harness, "Rustup");
+    click(&mut harness, text.dark_theme);
+    click(&mut harness, (text.section)(Section::Console));
     click(&mut harness, "Rust stable");
     save(&mut harness, &format!("{code}-tools.png"))
 }

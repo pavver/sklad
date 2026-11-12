@@ -2453,6 +2453,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "operator-ui-tokens"
+version = "0.6.0"
+source = "git+https://github.com/pavver/operator-design-system?rev=c69e965644fc1825a3f25eecb1caedf27e807c2d#c69e965644fc1825a3f25eecb1caedf27e807c2d"
+
+[[package]]
 name = "orbclient"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3175,6 +3180,7 @@ dependencies = [
  "eframe",
  "egui_kittest",
  "image",
+ "operator-ui-tokens",
  "quick-xml 0.38.4",
  "resvg",
  "rusqlite",

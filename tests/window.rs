@@ -181,7 +181,7 @@ fn catalog() -> Catalog {
 }
 
 fn window<'a>(backend: Arc<FakeBackend>) -> Harness<'a, App> {
-    window_of_size(backend, Vec2::new(1360.0, 860.0))
+    window_of_size(backend, Vec2::new(1360.0, 1200.0))
 }
 
 fn window_of_size<'a>(backend: Arc<FakeBackend>, size: Vec2) -> Harness<'a, App> {
@@ -229,7 +229,7 @@ fn shot(harness: &mut Harness<'_, App>, name: &str) {
 
 fn open_removal(harness: &mut Harness<'_, App>, title: &str) {
     settle(harness);
-    harness.get_by_role_and_label(Role::Button, title).click();
+    harness.get_by_role_and_label(Role::Row, title).click();
     settle(harness);
     harness
         .get(By::new().role(Role::Button).label_contains("Видалити"))
@@ -238,7 +238,7 @@ fn open_removal(harness: &mut Harness<'_, App>, title: &str) {
 }
 
 fn has_row(harness: &Harness<'_, App>, title: &str) -> bool {
-    harness.query_by_role_and_label(Role::Button, title).is_some()
+    harness.query_by_role_and_label(Role::Row, title).is_some()
 }
 
 fn confirm(harness: &mut Harness<'_, App>) {
@@ -256,14 +256,8 @@ fn the_window_opens_with_what_was_unused_longest_on_top() {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);
     shot(&mut harness, "01-list");
-    let first = harness
-        .get_by_role_and_label(Role::Button, "Програвач")
-        .rect()
-        .top();
-    let later = harness
-        .get_by_role_and_label(Role::Button, "Редактор")
-        .rect()
-        .top();
+    let first = harness.get_by_role_and_label(Role::Row, "Програвач").rect().top();
+    let later = harness.get_by_role_and_label(Role::Row, "Редактор").rect().top();
     assert!(first < later, "a program with no record of a launch goes first");
 }
 
@@ -271,7 +265,7 @@ fn the_window_opens_with_what_was_unused_longest_on_top() {
 fn a_click_opens_the_card() {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "Редактор").click();
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
     settle(&mut harness);
     shot(&mut harness, "02-card");
     assert!(harness.query_by_label("GPL-3.0").is_some());
@@ -317,7 +311,7 @@ fn a_library_programs_need_cannot_be_removed_until_that_is_chosen() {
     );
 
     harness
-        .get_by_role_and_label(Role::Button, "Видалити разом із ними")
+        .get_by_role_and_label(Role::Tab, "Видалити разом із ними")
         .click();
     settle(&mut harness);
     shot(&mut harness, "05-with-dependents");
@@ -397,10 +391,26 @@ fn success_closes_the_dialog_and_reads_the_system_again() {
     let backend = FakeBackend::new(Outcome::Done);
     let mut harness = window(Arc::clone(&backend));
     open_removal(&mut harness, "Редактор");
-    confirm(&mut harness);
-    sleep(Duration::from_millis(550));
-    settle(&mut harness);
-    assert!(harness.query_by_label_contains("Видалено: Редактор").is_some());
+    let button = harness
+        .get_all(By::new().role(Role::Button).label_contains("Видалити"))
+        .last();
+    if let Some(button) = button {
+        button.click();
+    }
+    // The toast lives a few seconds, and every frame of the harness moves its clock on, so it is
+    // looked for frame by frame rather than after the window settles.
+    let mut toasted = false;
+    for _ in 0..40 {
+        harness.step();
+        sleep(Duration::from_millis(20));
+        if harness.query_by_label_contains("Видалено: Редактор").is_some() {
+            toasted = true;
+            break;
+        }
+    }
+    harness.step();
+    shot(&mut harness, "12-removed");
+    assert!(toasted, "a toast says what was removed");
     assert!(
         harness.query_by_label("Скасувати").is_none(),
         "the dialog is gone"
@@ -440,7 +450,7 @@ fn a_leftover_says_why_and_cannot_be_removed() {
     let backend = FakeBackend::new(Outcome::Done);
     let mut harness = window(Arc::clone(&backend));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "pyzfs").click();
+    harness.get_by_role_and_label(Role::Row, "pyzfs").click();
     settle(&mut harness);
     shot(&mut harness, "21-leftover-card");
     assert!(
@@ -499,7 +509,7 @@ fn the_english_window_has_no_ukrainian_word_in_any_state() {
             .is_some()
     );
     assert_eq!(ukrainian_labels(&harness), Vec::<String>::new());
-    harness.get_by_role_and_label(Role::Button, "editor").click();
+    harness.get_by_role_and_label(Role::Row, "editor").click();
     settle(&mut harness);
     shot(&mut harness, "30-english-card");
     assert_eq!(ukrainian_labels(&harness), Vec::<String>::new());
@@ -531,7 +541,7 @@ fn the_switch_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
             .is_some()
     );
     harness
-        .get(By::new().role(Role::Button).label_contains("English"))
+        .get(By::new().role(Role::Tab).label_contains("English"))
         .click();
     settle(&mut harness);
     assert!(
@@ -549,7 +559,7 @@ fn the_switch_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
         Some(vec![Lang::Uk, Lang::En])
     );
     harness
-        .get(By::new().role(Role::Button).label_contains("Українська"))
+        .get(By::new().role(Role::Tab).label_contains("Українська"))
         .click();
     settle(&mut harness);
     assert!(
@@ -580,10 +590,10 @@ fn the_list_stays_inside_its_column_when_the_card_is_open() {
         let backend = FakeBackend::new(Outcome::Done);
         let mut harness = window_of_size(backend, Vec2::new(width, 700.0));
         settle(&mut harness);
-        harness.get_by_role_and_label(Role::Button, "Редактор").click();
+        harness.get_by_role_and_label(Role::Row, "Редактор").click();
         settle(&mut harness);
         shot(&mut harness, &format!("10-width-{width}"));
-        let row = harness.get_by_role_and_label(Role::Button, "Редактор").rect();
+        let row = harness.get_by_role_and_label(Role::Row, "Редактор").rect();
         let card = harness.get_by_label("Ліцензія").rect();
         assert!(
             row.right() <= card.left(),
@@ -679,7 +689,7 @@ fn pictures_of_the_real_system() {
         sleep(Duration::from_millis(5));
     }
     let row = harness
-        .get_all(By::new().role(Role::Button).label_contains("Kate"))
+        .get_all(By::new().role(Role::Row).label_contains("Kate"))
         .next();
     if let Some(row) = row {
         row.click();
@@ -699,9 +709,7 @@ fn pictures_of_the_real_system() {
     shot(&mut harness, "real-04-dialog");
     harness.key_press(eframe::egui::Key::Escape);
     settle(&mut harness);
-    harness
-        .get(By::new().role(Role::Button).label_contains("\u{E472}"))
-        .click();
+    harness.get_by_role_and_label(Role::Switch, "Темна тема").click();
     settle(&mut harness);
     shot(&mut harness, "real-05-light");
 }
@@ -713,7 +721,7 @@ fn close_up_pictures() {
     let backend = FakeBackend::new(Outcome::Done);
     let mut harness = window_of_size(Arc::clone(&backend), Vec2::new(1920.0, 1040.0));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "Сервіс").click();
+    harness.get_by_role_and_label(Role::Row, "Сервіс").click();
     settle(&mut harness);
     shot(&mut harness, "zoom-main");
     harness
@@ -761,16 +769,17 @@ fn controls_of_one_bar_share_their_top_and_height() {
         .get(By::new().role(Role::Button).label_contains("Оновити"))
         .rect();
     let search = harness.get_by_role(Role::TextInput).rect();
-    assert_eq!((search.top(), search.bottom()), (refresh.top(), refresh.bottom()));
-    let sort = harness.get_by_role_and_label(Role::Button, "Назва").rect();
-    let order = harness
-        .get(By::new().role(Role::Button).label_contains("\u{E08E}"))
-        .rect();
-    let origin = harness.get_by_role_and_label(Role::Button, "Сироти").rect();
-    assert_eq!(sort.height(), 36.0, "a segment is 9 DU high");
-    assert_eq!((sort.top(), sort.bottom()), (order.top(), order.bottom()));
-    assert_eq!((sort.top(), sort.bottom()), (origin.top(), origin.bottom()));
-    assert_eq!(order.width(), order.height(), "an icon button is square");
+    let origin = harness.get_by_role_and_label(Role::Tab, "Сироти").rect();
+    assert_eq!(refresh.height(), 32.0, "a toolbar command is 8 DU");
+    assert_eq!(refresh.width(), refresh.height(), "an icon button is square");
+    for other in [search, origin] {
+        assert_eq!(other.center().y, refresh.center().y);
+    }
+    assert_eq!(
+        origin.height(),
+        refresh.height() - 4.0,
+        "a segment sits inside its 0.5 DU padding"
+    );
 }
 
 /// Runs frames until the frame output holds a command the test is after.
@@ -791,7 +800,7 @@ fn wait_for_command(
 fn the_card_opens_the_site_and_copies_the_command() {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "Редактор").click();
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
     settle(&mut harness);
     harness
         .get(By::new().role(Role::Button).label_contains("Сайт"))
@@ -822,29 +831,32 @@ fn the_window_library_is_built_with_clipboard_and_links() -> Result<(), std::io:
 }
 
 #[test]
-fn a_copy_button_confirms_the_copy() {
+fn a_copy_button_confirms_the_copy() -> Result<(), String> {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "Редактор").click();
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
     settle(&mut harness);
-    harness
-        .get(By::new().role(Role::Button).label_contains("Скопіювати"))
-        .click();
-    let check_mark = || By::new().role(Role::Button).label_contains("\u{E182}");
-    let mut seen = false;
-    for _ in 0..4 {
-        harness.step();
-        if !seen && harness.query_all(check_mark()).next().is_some() {
-            seen = true;
-            shot(&mut harness, "11-copied");
-        }
-    }
-    assert!(seen, "the check mark appears");
+    let button = || By::new().role(Role::Button).label_contains("Скопіювати");
+    let rect = harness.get(button()).rect();
+    harness.hover_at(eframe::egui::pos2(700.0, 500.0));
     settle(&mut harness);
-    assert!(
-        harness.query_all(check_mark()).next().is_none(),
-        "and goes away by itself"
+    let before = fill_of(&harness.render()?, rect);
+    harness.get(button()).click();
+    harness.step();
+    harness.step();
+    harness.hover_at(eframe::egui::pos2(700.0, 500.0));
+    harness.step();
+    let flashing = fill_of(&harness.render()?, rect);
+    shot(&mut harness, "11-copied");
+    assert_ne!(before, flashing, "the button turns to its success colour");
+    sleep(Duration::from_millis(1400));
+    settle(&mut harness);
+    assert_eq!(
+        before,
+        fill_of(&harness.render()?, rect),
+        "and goes back by itself"
     );
+    Ok(())
 }
 
 fn fill_of(image: &image::RgbaImage, rect: eframe::egui::Rect) -> image::Rgba<u8> {
@@ -855,24 +867,21 @@ fn fill_of(image: &image::RgbaImage, rect: eframe::egui::Rect) -> image::Rgba<u8
 fn every_kind_of_button_reacts_to_the_pointer() -> Result<(), String> {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);
-    harness.get_by_role_and_label(Role::Button, "Редактор").click();
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
     settle(&mut harness);
     let targets = [
-        "Оновити",
-        "Сайт",
-        "Видалити",
-        "Назва",
-        "\u{E08E}",
-        "Мультимедіа",
-        "Сервіс",
+        (Role::Button, "Оновити"),
+        (Role::Button, "Сайт"),
+        (Role::Button, "Видалити"),
+        (Role::Button, "Мультимедіа"),
+        (Role::Row, "Сервіс"),
+        (Role::Tab, "Сироти"),
     ];
     let mut still = Vec::new();
-    for target in targets {
+    for (role, target) in targets {
         harness.hover_at(eframe::egui::pos2(700.0, 500.0));
         settle(&mut harness);
-        let rect = harness
-            .get(By::new().role(Role::Button).label_contains(target))
-            .rect();
+        let rect = harness.get(By::new().role(role).label_contains(target)).rect();
         let before = fill_of(&harness.render()?, rect);
         harness.hover_at(rect.center());
         settle(&mut harness);

@@ -1,185 +1,136 @@
-//! The list of items: rows of equal height, so only the visible ones are laid out.
+//! The catalogue as a `DataTable` (draft): name, install date, size, last launch.
 
-use eframe::egui::{
-    self, Align, Label, Layout, Rect, RichText, ScrollArea, Sense, Stroke, Ui, UiBuilder, WidgetInfo, pos2,
-    vec2,
-};
+use eframe::egui::{Id, Ui};
 
 use super::format;
-use super::theme::{AVATAR_ROW, BORDER, BORDER_THICK, GUTTER, PAD_CARD, Palette, Type, du, styled, tint};
-use super::widgets::{IconCache, avatar, hover_amount, row_id};
+use super::operator::data_table::{Column, DataTable, Direction, Sorting, Width};
+use super::operator::feedback::{empty_state, skeleton_lines};
+use super::operator::icon;
+use super::operator::tokens::{Palette, dim, du};
+use super::view::{Order, SortKey, View};
 use crate::i18n::Text;
-use crate::model::{Item, Usage};
+use crate::model::Item;
 
-const SIZE_COLUMN: f32 = du(22.0);
-const RUN_COLUMN: f32 = du(32.0);
+/// The sort keys in the order of the columns.
+const KEYS: [SortKey; 4] = [SortKey::Name, SortKey::Installed, SortKey::Size, SortKey::LastRun];
 
-/// One line of text in a rectangle, cut with an ellipsis when it does not fit.
-pub fn line_in(ui: &mut Ui, rect: Rect, text: RichText, align: Align) {
-    let layout = match align {
-        Align::Max => Layout::right_to_left(Align::Center),
-        _ => Layout::left_to_right(Align::Center),
+pub fn sorting_of(view: &View) -> Sorting {
+    let column = KEYS.iter().position(|key| *key == view.sort)?;
+    let direction = match view.order {
+        Order::Ascending => Direction::Ascending,
+        Order::Descending => Direction::Descending,
     };
-    ui.scope_builder(UiBuilder::new().max_rect(rect).layout(layout), |ui| {
-        ui.add(Label::new(text).truncate());
-    });
+    Some((column, direction))
+}
+
+pub fn sort_by(view: &mut View, sorting: Sorting) {
+    match sorting {
+        Some((column, direction)) => {
+            view.sort = KEYS.get(column).copied().unwrap_or(SortKey::Catalogue);
+            view.order = match direction {
+                Direction::Ascending => Order::Ascending,
+                Direction::Descending => Order::Descending,
+            };
+        }
+        None => {
+            view.sort = SortKey::Catalogue;
+            view.order = Order::Ascending;
+        }
+    }
 }
 
 pub struct Rows<'a> {
     pub items: &'a [Item],
     pub indices: &'a [usize],
     pub selected: Option<&'a str>,
+    pub sorting: Sorting,
+    pub loading: bool,
     pub now: i64,
     pub text: &'static Text,
 }
 
-fn usage_colour(usage: Usage, palette: &Palette) -> egui::Color32 {
-    match usage {
-        Usage::Running => palette.success,
-        Usage::NoRecord => palette.pending,
-        Usage::Last { .. } => palette.text_primary,
-        Usage::NotTracked => palette.text_disabled,
+pub enum Event {
+    Select(String),
+    Sort(Sorting),
+}
+
+fn cell(item: &Item, column: usize, rows: &Rows<'_>) -> String {
+    let text = rows.text;
+    match column {
+        0 => item.title.clone(),
+        1 => item
+            .installed
+            .map_or_else(|| "—".to_owned(), |at| format::date(at, text)),
+        2 => item
+            .size
+            .map_or_else(|| "—".to_owned(), |size| format::size(size, text)),
+        _ => format::usage(item.usage, rows.now, text),
     }
 }
 
-fn header(ui: &mut Ui, text: &Text, palette: &Palette) {
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), du(6.0)), Sense::hover());
-    ui.painter().rect_filled(rect, 0.0, palette.surface_alt);
-    let colour = palette.text_secondary;
-    let size_rect = Rect::from_min_max(
-        pos2(rect.right() - RUN_COLUMN - SIZE_COLUMN, rect.top()),
-        pos2(rect.right() - RUN_COLUMN - GUTTER, rect.bottom()),
-    );
-    let run_rect = Rect::from_min_max(
-        pos2(rect.right() - RUN_COLUMN, rect.top()),
-        pos2(rect.right() - PAD_CARD, rect.bottom()),
-    );
-    let name_rect = Rect::from_min_max(
-        pos2(rect.left() + PAD_CARD, rect.top()),
-        pos2(size_rect.left(), rect.bottom()),
-    );
-    line_in(
-        ui,
-        name_rect,
-        styled(text.column_program, Type::Subtitle, colour),
-        Align::Min,
-    );
-    line_in(
-        ui,
-        size_rect,
-        styled(text.column_size, Type::Subtitle, colour),
-        Align::Max,
-    );
-    line_in(
-        ui,
-        run_rect,
-        styled(text.column_last_run, Type::Subtitle, colour),
-        Align::Max,
-    );
-}
-
-fn row(ui: &mut Ui, item: &Item, rows: &Rows<'_>, icons: &mut IconCache, palette: &Palette) -> bool {
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), AVATAR_ROW), Sense::hover());
-    let response = ui.interact(rect, row_id(&item.id), Sense::click());
-    let selected = rows.selected == Some(item.id.as_str());
-    response.widget_info(|| WidgetInfo::selected(egui::Role::Button, true, selected, item.title.clone()));
-
-    if selected {
-        ui.painter().rect_filled(rect, 0.0, tint(palette.accent, 0.15));
-        let marker = Rect::from_min_size(rect.min, vec2(BORDER_THICK, rect.height()));
-        ui.painter().rect_filled(marker, 0.0, palette.accent);
-    } else {
-        ui.painter()
-            .rect_filled(rect, 0.0, tint(palette.surface, hover_amount(ui, &response)));
-    }
-    let bottom = rect.bottom() - BORDER / 2.0;
-    ui.painter().hline(
-        rect.x_range(),
-        bottom,
-        Stroke::new(BORDER, palette.disabled_border),
-    );
-
-    let icon_rect = Rect::from_center_size(
-        pos2(rect.left() + PAD_CARD + du(5.0), rect.center().y),
-        vec2(du(10.0), du(10.0)),
-    );
-    avatar(ui, icon_rect, item.icon.as_deref(), &item.title, icons, palette);
-
-    let text_left = icon_rect.right() + PAD_CARD;
-    let text_right = rect.right() - RUN_COLUMN - SIZE_COLUMN;
-    let middle = rect.center().y;
-    let title_rect = Rect::from_min_max(
-        pos2(text_left, middle - du(5.5)),
-        pos2(text_right, middle + du(0.5)),
-    );
-    let summary_rect = Rect::from_min_max(
-        pos2(text_left, middle + du(0.5)),
-        pos2(text_right, middle + du(5.0)),
-    );
-    line_in(
-        ui,
-        title_rect,
-        styled(item.title.clone(), Type::RowTitle, palette.text_primary),
-        Align::Min,
-    );
-    let summary = if item.summary.is_empty() {
-        &item.package
-    } else {
-        &item.summary
+pub fn show(ui: &mut Ui, rows: &Rows<'_>, palette: &Palette) -> Option<Event> {
+    let text = rows.text;
+    let columns = [
+        Column {
+            title: text.column_program,
+            width: Width::Share(1.0),
+            numeric: false,
+            sortable: true,
+        },
+        Column {
+            title: text.sort_installed,
+            width: Width::Fixed(32.0),
+            numeric: true,
+            sortable: true,
+        },
+        Column {
+            title: text.column_size,
+            width: Width::Fixed(22.0),
+            numeric: true,
+            sortable: true,
+        },
+        Column {
+            title: text.column_last_run,
+            width: Width::Fixed(40.0),
+            numeric: true,
+            sortable: true,
+        },
+    ];
+    let selected = rows
+        .selected
+        .and_then(|id| rows.indices.iter().position(|&index| rows.items[index].id == id));
+    let table = DataTable {
+        id: Id::unique("catalogue"),
+        columns: &columns,
+        rows: rows.indices.len(),
+        sorting: rows.sorting,
+        selected,
+        loading: rows.loading,
     };
-    line_in(
+    let item = |row: usize| &rows.items[rows.indices[row]];
+    let events = table.show(
         ui,
-        summary_rect,
-        styled(summary.clone(), Type::Subtitle, palette.text_secondary),
-        Align::Min,
-    );
-
-    let size_rect = Rect::from_min_max(
-        pos2(text_right, rect.top()),
-        pos2(rect.right() - RUN_COLUMN - GUTTER, rect.bottom()),
-    );
-    let size = item
-        .size
-        .map_or_else(|| "—".to_owned(), |size| format::size(size, rows.text));
-    line_in(
-        ui,
-        size_rect,
-        styled(size, Type::Console, palette.text_secondary),
-        Align::Max,
-    );
-
-    let run_rect = Rect::from_min_max(
-        pos2(rect.right() - RUN_COLUMN, rect.top()),
-        pos2(rect.right() - PAD_CARD, rect.bottom()),
-    );
-    let usage = format::usage(item.usage, rows.now, rows.text);
-    line_in(
-        ui,
-        run_rect,
-        styled(usage, Type::Console, usage_colour(item.usage, palette)),
-        Align::Max,
-    );
-    response.on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
-}
-
-/// Draws the list and returns the id of the row clicked.
-pub fn show(ui: &mut Ui, rows: &Rows<'_>, icons: &mut IconCache, palette: &Palette) -> Option<String> {
-    header(ui, rows.text, palette);
-    let mut clicked = None;
-    ui.spacing_mut().item_spacing.y = 0.0;
-    ScrollArea::vertical().auto_shrink([false, false]).show_rows(
-        ui,
-        AVATAR_ROW,
-        rows.indices.len(),
-        |ui, range| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            for &index in &rows.indices[range] {
-                let item = &rows.items[index];
-                if row(ui, item, rows, icons, palette) {
-                    clicked = Some(item.id.clone());
-                }
+        palette,
+        |row, column| cell(item(row), column, rows),
+        |row| item(row).title.clone(),
+        |ui| {
+            if rows.loading {
+                ui.add_space(du(dim::PAD_CARD));
+                ui.horizontal(|ui| {
+                    ui.add_space(du(dim::PAD_CARD));
+                    ui.vertical(|ui| {
+                        ui.set_width(ui.available_width() - du(dim::PAD_CARD));
+                        skeleton_lines(ui, 6, palette);
+                    });
+                });
+            } else {
+                let rect = ui.max_rect();
+                empty_state(ui, rect, icon::INBOX, text.nothing_found, None, true, palette);
             }
         },
     );
-    clicked
+    if let Some(sorting) = events.sorting {
+        return Some(Event::Sort(sorting));
+    }
+    events.activated.map(|row| Event::Select(item(row).id.clone()))
 }

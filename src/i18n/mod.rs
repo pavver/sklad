@@ -127,7 +127,6 @@ pub struct Text {
 
     pub reading_system: &'static str,
     pub nothing_found: &'static str,
-    pub light_theme: &'static str,
     pub dark_theme: &'static str,
     pub refresh: &'static str,
     pub search: &'static str,

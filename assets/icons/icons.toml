@@ -1,0 +1,33 @@
+# Icons sklad needs beyond the Operator UI set, which comes with the operator-ui-tokens crate.
+#
+# Material Symbols Sharp, the icon source of the design system.
+# Import or refresh with `python3 scripts/import_icons.py`; `--check` compares with the source.
+#
+# Fields are those of the design system manifest:
+#   material = Material Symbols name (https://fonts.google.com/icons?icon.style=Sharp)
+#   fill     = true for the filled variant (default false, outlined)
+#   opsz     = optical size: 20 (default, for icons up to 5 DU), 24, 40 or 48
+
+[icons]
+all_inclusive = { material = "all_inclusive" }
+apps = { material = "apps" }
+build = { material = "build" }
+code = { material = "code" }
+construction = { material = "construction" }
+deployed_code = { material = "deployed_code" }
+description = { material = "description" }
+extension = { material = "extension" }
+folder = { material = "folder" }
+font_download = { material = "font_download" }
+groups = { material = "groups" }
+inventory_2 = { material = "inventory_2" }
+layers = { material = "layers" }
+memory = { material = "memory" }
+movie = { material = "movie" }
+open_in_new = { material = "open_in_new" }
+palette = { material = "palette" }
+public = { material = "public" }
+school = { material = "school" }
+science = { material = "science" }
+sports_esports = { material = "sports_esports" }
+terminal = { material = "terminal" }

@@ -100,4 +100,4 @@ cargo run --release
 
 ## Ліцензія
 
-[MIT](LICENSE). Шрифти: Cascadia Mono (SIL OFL 1.1) і Phosphor (MIT), їхні ліцензії лежать в `assets/`.
+[MIT](LICENSE). Інтерфейс побудовано на дизайн-системі [Operator UI](https://github.com/pavver/operator-design-system). Сторонні ресурси (шрифт Cascadia Code, іконки Material Symbols, перемикач дня й ночі) мають власні ліцензії, перелічені в [NOTICE.md](NOTICE.md).

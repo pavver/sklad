@@ -49,7 +49,6 @@ pub static TEXT: Text = Text {
 
     reading_system: "Reading the system…",
     nothing_found: "Nothing found. Change the search or the filters.",
-    light_theme: "Light theme",
     dark_theme: "Dark theme",
     refresh: "Refresh",
     search: "Search",

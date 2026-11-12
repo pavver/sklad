@@ -25,21 +25,14 @@ pub enum SortKey {
     Name,
     Size,
     Installed,
+    /// The order of the catalogue itself.
+    Catalogue,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Order {
     Ascending,
     Descending,
-}
-
-impl Order {
-    pub fn flipped(self) -> Self {
-        match self {
-            Order::Ascending => Order::Descending,
-            Order::Descending => Order::Ascending,
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -150,6 +143,7 @@ fn missing_last<T: Ord>(left: Option<T>, right: Option<T>, order: Order) -> Orde
 fn compare(left: &Item, right: &Item, view: &View) -> Ordering {
     let order = view.order;
     let primary = match view.sort {
+        SortKey::Catalogue => return Ordering::Equal,
         SortKey::LastRun => missing_last(run_rank(left.usage), run_rank(right.usage), order),
         SortKey::Size => missing_last(left.size, right.size, order),
         SortKey::Installed => missing_last(left.installed, right.installed, order),
@@ -269,6 +263,19 @@ mod tests {
             };
             assert_eq!(titles(&items, &view).last().map(String::as_str), Some("Fresh"));
         }
+    }
+
+    #[test]
+    fn the_original_order_is_the_order_of_the_catalogue() {
+        let view = View {
+            scope: Scope::Everything,
+            sort: SortKey::Catalogue,
+            ..View::default()
+        };
+        assert_eq!(
+            titles(&sample(), &view),
+            ["Fresh", "Stale", "Never", "Live", "tool"]
+        );
     }
 
     #[test]
