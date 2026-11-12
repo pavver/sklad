@@ -1,5 +1,8 @@
 //! `DataTable` (draft, `docs/components/data-table.md`): text cells, sortable columns, a sticky
 //! header and single selection. Rows have one height, so only the visible ones are laid out.
+//!
+//! Deviation, agreed with the maintainer: the first cell may lead with a square slot, `pad_card`
+//! before its text, as the leading slot of `ListItem`. The specification has text cells only.
 
 use eframe::egui::{
     self, Align, CursorIcon, Id, Key, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
@@ -52,12 +55,21 @@ pub struct DataTable<'a> {
     pub sorting: Sorting,
     pub selected: Option<usize>,
     pub loading: bool,
+    /// The side, in DU, of a square slot leading the first cell; `None` for text alone.
+    pub leading: Option<f32>,
 }
 
 #[derive(Default)]
 pub struct Events {
     pub activated: Option<usize>,
     pub sorting: Option<Sorting>,
+}
+
+/// What a body row is drawn from: see `DataTable::show`.
+struct Content<C, N, L> {
+    cell: C,
+    name: N,
+    leading: L,
 }
 
 const HEADER: f32 = du(dim::ROW_COMPACT);
@@ -99,16 +111,19 @@ impl DataTable<'_> {
     }
 
     /// Draws the table. `cell(row, column)` gives the text of a cell, `name(row)` the accessible
-    /// name of a row, and `empty` what stands in place of no rows.
+    /// name of a row, `leading(ui, row, rect)` paints the leading slot of a visible row, and `empty`
+    /// what stands in place of no rows.
     pub fn show(
         &self,
         ui: &mut Ui,
         palette: &Palette,
         cell: impl Fn(usize, usize) -> String,
         name: impl Fn(usize) -> String,
+        leading: impl FnMut(&Ui, usize, Rect),
         empty: impl FnOnce(&mut Ui),
     ) -> Events {
         let mut events = Events::default();
+        let mut content = Content { cell, name, leading };
         let outer = ui.available_rect_before_wrap();
         let inner = outer.shrink(BORDER);
         let spans = self.spans(inner.left(), inner.width());
@@ -134,7 +149,7 @@ impl DataTable<'_> {
                 .auto_shrink([false, false])
                 .show_rows(ui, ROW, self.rows, |ui, range| {
                     for row in range {
-                        if self.row(ui, row, &spans, palette, &cell, &name) {
+                        if self.row(ui, row, &spans, palette, &mut content) {
                             events.activated = Some(row);
                         }
                     }
@@ -224,13 +239,16 @@ impl DataTable<'_> {
         row: usize,
         spans: &[(f32, f32)],
         palette: &Palette,
-        cell: &impl Fn(usize, usize) -> String,
-        name: &impl Fn(usize) -> String,
+        content: &mut Content<
+            impl Fn(usize, usize) -> String,
+            impl Fn(usize) -> String,
+            impl FnMut(&Ui, usize, Rect),
+        >,
     ) -> bool {
         let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::hover());
         let response = ui.interact(rect, self.id.with(("row", row)), Sense::click());
         let selected = self.selected == Some(row);
-        response.widget_info(|| WidgetInfo::selected(egui::Role::Row, true, selected, name(row)));
+        response.widget_info(|| WidgetInfo::selected(egui::Role::Row, true, selected, (content.name)(row)));
         let activated = response.clicked()
             || (response.has_focus()
                 && ui.input(|input| input.key_pressed(Key::Enter) || input.key_pressed(Key::Space)));
@@ -245,11 +263,21 @@ impl DataTable<'_> {
                 .rect_filled(rect, 0.0, mix(palette.background, palette.pressed, hover));
         }
         for (index, (column, (left, right))) in self.columns.iter().zip(spans).enumerate() {
-            let cell_rect =
+            let mut cell_rect =
                 Rect::from_x_y_ranges(*left..=*right, rect.y_range()).shrink2(vec2(CELL_PAD, 0.0));
+            if index == 0
+                && let Some(side) = self.leading.map(du)
+            {
+                let slot = Rect::from_center_size(
+                    pos2(cell_rect.left() + side / 2.0, cell_rect.center().y),
+                    vec2(side, side),
+                );
+                (content.leading)(ui, row, slot);
+                cell_rect.min.x = (slot.right() + CELL_PAD).min(cell_rect.max.x);
+            }
             let galley = truncated(
                 ui,
-                text(cell(row, index), Type::BodySmall, palette.text_primary),
+                text((content.cell)(row, index), Type::BodySmall, palette.text_primary),
                 cell_rect.width(),
             );
             let align = if column.numeric { Align::Max } else { Align::Min };

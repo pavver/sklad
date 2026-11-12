@@ -1,12 +1,14 @@
-//! The catalogue as a `DataTable` (draft): name, install date, size, last launch.
+//! The catalogue as a `DataTable` (draft): icon and name, install date, size, last launch.
 
 use eframe::egui::{Id, Ui};
 
 use super::format;
+use super::operator::content::avatar;
 use super::operator::data_table::{Column, DataTable, Direction, Sorting, Width};
 use super::operator::feedback::{empty_state, skeleton_lines};
 use super::operator::icon;
 use super::operator::tokens::{Palette, dim, du};
+use super::pictures::Pictures;
 use super::view::{Order, SortKey, View};
 use crate::i18n::Text;
 use crate::model::Item;
@@ -68,7 +70,7 @@ fn cell(item: &Item, column: usize, rows: &Rows<'_>) -> String {
     }
 }
 
-pub fn show(ui: &mut Ui, rows: &Rows<'_>, palette: &Palette) -> Option<Event> {
+pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Palette) -> Option<Event> {
     let text = rows.text;
     let columns = [
         Column {
@@ -106,6 +108,7 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, palette: &Palette) -> Option<Event> {
         sorting: rows.sorting,
         selected,
         loading: rows.loading,
+        leading: Some(dim::AVATAR_SMALL),
     };
     let item = |row: usize| &rows.items[rows.indices[row]];
     let events = table.show(
@@ -113,6 +116,11 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, palette: &Palette) -> Option<Event> {
         palette,
         |row, column| cell(item(row), column, rows),
         |row| item(row).title.clone(),
+        |ui, row, rect| {
+            let item = item(row);
+            let picture = pictures.get(item.icon.as_deref());
+            avatar(ui, rect, &item.id, &item.title, picture, palette);
+        },
         |ui| {
             if rows.loading {
                 ui.add_space(du(dim::PAD_CARD));

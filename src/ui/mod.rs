@@ -417,7 +417,7 @@ impl App {
             now,
             text: self.text(),
         };
-        match list::show(ui, &rows, palette) {
+        match list::show(ui, &rows, &mut self.pictures, palette) {
             Some(list::Event::Select(id)) => self.select(&id),
             Some(list::Event::Sort(sorting)) => {
                 list::sort_by(&mut self.view, sorting);
