@@ -10,7 +10,7 @@ use eframe::epaint::text::VariationCoords;
 use super::button::IconButton;
 use super::icon;
 use super::state::{Activity, BORDER, Outcome, result_hold};
-use super::text::{galley, paint_aligned};
+use super::text::{galley, paint_aligned, paint_selectable, selectable_sense};
 use super::tokens::{BOLD, Palette, Type, dim, du, text};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -224,8 +224,10 @@ impl CodeBlock<'_> {
                     let size = body.size() + vec2(2.0 * pad, 2.0 * pad);
                     let (area, _) =
                         ui.allocate_exact_size(size.max(vec2(body_rect.width(), 0.0)), Sense::hover());
-                    ui.painter()
-                        .galley(area.min + vec2(pad, pad), body, palette.text_primary);
+                    let at = area.min + vec2(pad, pad);
+                    let text_rect = Rect::from_min_size(at, body.size());
+                    let response = ui.interact(text_rect, self.id.with("text"), selectable_sense());
+                    paint_selectable(ui, &response, at, body, palette.text_primary);
                 });
         });
         ui.painter()

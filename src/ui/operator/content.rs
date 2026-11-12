@@ -13,7 +13,7 @@ use super::state::{
     Activity, BORDER, BORDER_THICK, ControlState, Look, Outcome, Outline, hover_amount, paint_border,
     paint_focus_ring, paint_spinner, result_hold,
 };
-use super::text::{galley, paint_galley, wrapped};
+use super::text::{galley, paint_galley, paint_selectable, selectable_sense, wrapped};
 use super::tokens::{BOLD, MEDIUM, Palette, Type, dim, du, mix, secs, text, tint, weighted};
 
 /// What an avatar can show of its image.
@@ -223,22 +223,27 @@ pub fn property_list(ui: &mut Ui, id: Id, properties: &[Property<'_>], palette: 
         let label_size = label.size();
         let label_at = pos2(label_rect.left(), label_rect.center().y - label_size.y / 2.0);
         let label_response = ui.interact(
-            Rect::from_min_size(label_at, label_size),
+            Rect::from_min_size(label_at.round(), label_size),
             id.with(("label", index)),
-            Sense::hover(),
+            selectable_sense(),
         );
         label_response.widget_info(|| WidgetInfo::labeled(egui::Role::Label, true, property.label));
-        ui.painter()
-            .galley(label_at.round(), label, palette.text_secondary);
+        paint_selectable(
+            ui,
+            &label_response,
+            label_at.round(),
+            label,
+            palette.text_secondary,
+        );
         let value_size = value.size();
         let value_at = pos2(value_rect.left(), value_rect.center().y - value_size.y / 2.0);
         let value_response = ui.interact(
-            Rect::from_min_size(value_at, value_size),
+            Rect::from_min_size(value_at.round(), value_size),
             id.with(("value", index)),
-            Sense::hover(),
+            selectable_sense(),
         );
         value_response.widget_info(|| WidgetInfo::labeled(egui::Role::Label, true, &property.value));
-        ui.painter().galley(value_at.round(), value, palette.text_primary);
+        paint_selectable(ui, &value_response, value_at.round(), value, palette.text_primary);
         if let Some(name) = property.copy {
             let button = Rect::from_min_size(
                 pos2(

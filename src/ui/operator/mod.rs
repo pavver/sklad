@@ -57,7 +57,8 @@ pub fn apply(ctx: &egui::Context, palette: &Palette) {
             interact_handle_opacity: 1.0,
             ..ScrollStyle::floating()
         };
-        style.interaction.selectable_labels = false;
+        // Text can be selected and copied, as on the web; controls paint their own words.
+        style.interaction.selectable_labels = true;
         style.interaction.tooltip_delay = secs(durations::TOOLTIP_SHOW_DELAY_MS);
         style.animation_time = secs(durations::STATE_COLOR_MS);
 

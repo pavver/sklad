@@ -967,3 +967,40 @@ fn the_list_keeps_its_scroll_when_the_card_opens_and_closes() {
     settle(&mut harness);
     assert_eq!(top_row(&harness), scrolled, "the next click keeps the scroll");
 }
+
+/// Drags across a piece of text and copies what got selected.
+fn select_and_copy(harness: &mut Harness<'_, App>, rect: eframe::egui::Rect) -> Option<String> {
+    let start = rect.left_center() + Vec2::new(1.0, 0.0);
+    let end = rect.right_center() - Vec2::new(1.0, 0.0);
+    harness.hover_at(start);
+    harness.step();
+    harness.drag_at(start);
+    harness.step();
+    harness.hover_at(end);
+    harness.step();
+    harness.drop_at(end);
+    harness.step();
+    harness.event(eframe::egui::Event::Copy);
+    harness.step();
+    harness
+        .output()
+        .platform_output
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            eframe::egui::OutputCommand::CopyText(text) => Some(text.clone()),
+            _ => None,
+        })
+}
+
+#[test]
+fn text_of_the_card_can_be_selected_and_copied() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    let licence = harness.get_by_label("GPL-3.0").rect();
+    assert_eq!(select_and_copy(&mut harness, licence).as_deref(), Some("GPL-3.0"));
+    let summary = harness.get_by_label("Опис Редактор").rect();
+    assert_eq!(select_and_copy(&mut harness, summary).as_deref(), Some("Опис Редактор"));
+}

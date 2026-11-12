@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
+use eframe::egui::text_selection::LabelSelectionState;
 use eframe::egui::{
-    Align, Color32, FontSelection, Galley, Rect, RichText, TextWrapMode, Ui, WidgetText, pos2,
+    Align, Color32, CursorIcon, FontSelection, Galley, Pos2, Rect, Response, RichText, Sense, Stroke,
+    TextWrapMode, Ui, WidgetText, pos2,
 };
 
 /// Text on one line at its natural width.
@@ -51,4 +53,18 @@ pub fn paint_aligned(ui: &Ui, rect: Rect, galley: Arc<Galley>, align: Align, col
     };
     let y = rect.center().y - galley.size().y / 2.0;
     ui.painter().galley(pos2(x, y).round(), galley, colour);
+}
+
+/// What text that can be selected senses: a click and a drag, without taking focus from Tab.
+pub fn selectable_sense() -> Sense {
+    Sense::click_and_drag() - Sense::FOCUSABLE
+}
+
+/// Paints text the person can select and copy, as a selectable `Label` does. `response` must
+/// come from `selectable_sense` over the rectangle of the text.
+pub fn paint_selectable(ui: &Ui, response: &Response, at: Pos2, galley: Arc<Galley>, colour: Color32) {
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Text);
+    }
+    LabelSelectionState::label_text_selection(ui, response, at, galley, colour, Stroke::NONE);
 }
