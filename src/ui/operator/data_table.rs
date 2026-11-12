@@ -137,7 +137,12 @@ impl DataTable<'_> {
         }
 
         let body = Rect::from_min_max(pos2(inner.left(), header.bottom()), inner.max);
-        ui.scope_builder(egui::UiBuilder::new().max_rect(body), |ui| {
+        // The body keeps its scroll position wherever the table is placed: a parent that changes,
+        // as when a side pane opens, would otherwise give it another scroll area.
+        let builder = egui::UiBuilder::new()
+            .max_rect(body)
+            .scope_id(self.id.with("body"));
+        ui.scope_builder(builder, |ui| {
             if self.rows == 0 {
                 ui.allocate_rect(body, Sense::hover());
                 ui.scope_builder(egui::UiBuilder::new().max_rect(body), empty);

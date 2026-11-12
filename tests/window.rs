@@ -893,3 +893,77 @@ fn every_kind_of_button_reacts_to_the_pointer() -> Result<(), String> {
     assert!(still.is_empty(), "no reaction to the pointer: {still:?}");
     Ok(())
 }
+
+/// Enough programs to scroll.
+fn long_catalog() -> Catalog {
+    let items: Vec<Item> = (0..60)
+        .map(|index| {
+            let mut item = item(
+                &format!("p{index:02}"),
+                &format!("Програма {index:02}"),
+                Section::Office,
+                Usage::NoRecord,
+            );
+            item.id = format!("pacman:p{index:02}");
+            item
+        })
+        .collect();
+    let nodes = items
+        .iter()
+        .map(|item| node(&item.package, &[], Reason::Explicit, false))
+        .collect();
+    Catalog {
+        items,
+        db: PackageDb::new(nodes),
+    }
+}
+
+/// The label of the highest row shown below the header.
+fn top_row(harness: &Harness<'_, App>) -> Option<String> {
+    let rows = harness.get_all(By::new().role(Role::Row));
+    rows.filter(|row| row.rect().top() > 90.0)
+        .min_by(|a, b| a.rect().top().total_cmp(&b.rect().top()))
+        .and_then(|row| row.accesskit_node().label())
+}
+
+#[test]
+fn the_list_keeps_its_scroll_when_the_card_opens_and_closes() {
+    let backend = FakeBackend::new(Outcome::Done);
+    let mut harness = window_speaking(
+        backend,
+        Vec2::new(1360.0, 700.0),
+        Arc::new(|_| long_catalog()),
+        Lang::Uk,
+    );
+    settle(&mut harness);
+    let list = harness
+        .get_by_role_and_label(Role::Row, "Програма 03")
+        .rect()
+        .center();
+    harness.hover_at(list);
+    for _ in 0..10 {
+        harness.event(eframe::egui::Event::MouseWheel {
+            unit: eframe::egui::MouseWheelUnit::Point,
+            delta: Vec2::new(0.0, -100.0),
+            phase: eframe::egui::TouchPhase::Move,
+            modifiers: eframe::egui::Modifiers::NONE,
+            source: eframe::egui::MouseWheelSource::Wheel,
+        });
+        harness.step();
+    }
+    settle(&mut harness);
+    let scrolled = top_row(&harness);
+    assert_ne!(
+        scrolled.as_deref(),
+        Some("Програма 00"),
+        "the wheel scrolls the list"
+    );
+    open_removal(&mut harness, "Програма 30");
+    assert_eq!(top_row(&harness), scrolled, "opening the card keeps the scroll");
+    confirm(&mut harness);
+    settle(&mut harness);
+    assert_eq!(top_row(&harness), scrolled, "closing the card keeps the scroll");
+    harness.get_by_role_and_label(Role::Row, "Програма 33").click();
+    settle(&mut harness);
+    assert_eq!(top_row(&harness), scrolled, "the next click keeps the scroll");
+}
