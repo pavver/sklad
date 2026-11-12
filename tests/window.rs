@@ -105,8 +105,10 @@ fn node(name: &str, depends: &[&str], reason: Reason, meta: bool) -> Node {
     Node {
         name: name.to_owned(),
         depends: depends.iter().map(|dep| (*dep).to_owned()).collect(),
+        recommends: Vec::new(),
         provides: Vec::new(),
         reason,
+        critical: false,
         meta,
         size: 1_048_576,
     }

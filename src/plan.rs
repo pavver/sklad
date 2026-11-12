@@ -12,9 +12,15 @@ use crate::model::Reason;
 #[derive(Clone, Debug)]
 pub struct Node {
     pub name: String,
+    /// Each entry names one package, or alternatives as `a | b`, any of which will do.
     pub depends: Vec<String>,
+    /// Weak dependencies: they do not break anything when gone, but they keep a package that was
+    /// pulled in, the way apt keeps recommended packages from autoremoval.
+    pub recommends: Vec<String>,
     pub provides: Vec<String>,
     pub reason: Reason,
+    /// The package system itself says the system needs it, as Debian does with `Essential: yes`.
+    pub critical: bool,
     /// Holds no files of its own: it exists to pull other packages in.
     pub meta: bool,
     pub size: u64,
@@ -26,6 +32,7 @@ pub struct PackageDb {
     by_name: HashMap<String, usize>,
     providers: HashMap<String, Vec<usize>>,
     needed_by: Vec<Vec<usize>>,
+    wanted_by: Vec<Vec<usize>>,
 }
 
 /// What to do about packages that cannot work without the target.
@@ -118,22 +125,48 @@ impl PackageDb {
                 }
             }
         }
-        let mut needed_by = vec![Vec::new(); nodes.len()];
-        for (index, node) in nodes.iter().enumerate() {
-            for dep in &node.depends {
-                let exact = providers.get(dep).or_else(|| providers.get(bare_name(dep)));
-                for &provider in exact.map_or(&[][..], Vec::as_slice) {
-                    if provider != index && !needed_by[provider].contains(&index) {
-                        needed_by[provider].push(index);
+        // Alternatives are one dependency: it holds while any of them is installed.
+        let alternatives: Vec<String> = nodes
+            .iter()
+            .flat_map(|node| node.depends.iter().chain(&node.recommends))
+            .filter(|dep| dep.contains('|'))
+            .cloned()
+            .collect();
+        for dep in alternatives {
+            let mut any: Vec<usize> = Vec::new();
+            for choice in dep.split('|').map(str::trim) {
+                let found = providers.get(choice).or_else(|| providers.get(bare_name(choice)));
+                for &provider in found.map_or(&[][..], Vec::as_slice) {
+                    if !any.contains(&provider) {
+                        any.push(provider);
                     }
                 }
             }
+            providers.insert(dep, any);
         }
+        let edges = |list: fn(&Node) -> &Vec<String>| {
+            let mut users = vec![Vec::new(); nodes.len()];
+            for (index, node) in nodes.iter().enumerate() {
+                for dep in list(node) {
+                    let exact = providers.get(dep).or_else(|| providers.get(bare_name(dep)));
+                    for &provider in exact.map_or(&[][..], Vec::as_slice) {
+                        let known: &mut Vec<usize> = &mut users[provider];
+                        if provider != index && !known.contains(&index) {
+                            known.push(index);
+                        }
+                    }
+                }
+            }
+            users
+        };
+        let needed_by = edges(|node| &node.depends);
+        let wanted_by = edges(|node| &node.recommends);
         Self {
             nodes,
             by_name,
             providers,
             needed_by,
+            wanted_by,
         }
     }
 
@@ -199,7 +232,14 @@ impl PackageDb {
 
         let mut remove: Vec<String> = gone.iter().map(|&i| self.nodes[i].name.clone()).collect();
         remove.sort();
-        let critical = remove.iter().filter(|name| is_critical(name)).cloned().collect();
+        let critical = gone
+            .iter()
+            .map(|&i| &self.nodes[i])
+            .filter(|node| node.critical || is_critical(&node.name))
+            .map(|node| node.name.clone())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
         let mut keep_names: Vec<String> = keep.iter().map(|&i| self.nodes[i].name.clone()).collect();
         keep_names.sort();
         Some(PacmanPlan {
@@ -235,7 +275,8 @@ impl PackageDb {
         let mut candidates = HashSet::new();
         let mut frontier: Vec<usize> = gone.iter().copied().collect();
         while let Some(current) = frontier.pop() {
-            for dep in &self.nodes[current].depends {
+            let node = &self.nodes[current];
+            for dep in node.depends.iter().chain(&node.recommends) {
                 for &provider in self.providers_of(dep) {
                     let pulled_in = self.nodes[provider].reason == Reason::Dependency;
                     if pulled_in
@@ -255,6 +296,7 @@ impl PackageDb {
                 .filter(|candidate| {
                     self.needed_by[*candidate]
                         .iter()
+                        .chain(&self.wanted_by[*candidate])
                         .any(|user| !gone.contains(user) && !candidates.contains(user))
                 })
                 .collect();
@@ -277,8 +319,10 @@ mod tests {
         Node {
             name: name.to_owned(),
             depends: depends.iter().map(|dep| (*dep).to_owned()).collect(),
+            recommends: Vec::new(),
             provides: Vec::new(),
             reason,
+            critical: false,
             meta: false,
             size: 10,
         }
@@ -480,5 +524,60 @@ mod tests {
         assert_eq!(bare_name("foo=1"), "foo");
         assert_eq!(bare_name("foo: for bar"), "foo");
         assert_eq!(bare_name("libfoo.so=1-64"), "libfoo.so");
+    }
+
+    #[test]
+    fn a_dependency_on_alternatives_holds_while_one_of_them_stays() {
+        let db = PackageDb::new(vec![
+            node("app", &["mawk | gawk"], Reason::Explicit),
+            node("mawk", &[], Reason::Explicit),
+            node("gawk", &[], Reason::Explicit),
+        ]);
+        assert_eq!(
+            db.plan("mawk", Mode::Keep).map(|p| p.remove),
+            Some(names(&["mawk"]))
+        );
+        assert_eq!(db.required_by("gawk"), names(&["app"]));
+    }
+
+    #[test]
+    fn a_recommended_package_stays_while_what_recommends_it_stays() {
+        let mut viewer = node("viewer", &[], Reason::Explicit);
+        viewer.recommends = names(&["codecs"]);
+        let db = PackageDb::new(vec![
+            node("player", &["codecs"], Reason::Explicit),
+            viewer,
+            node("codecs", &[], Reason::Dependency),
+        ]);
+        assert_eq!(
+            db.plan("player", Mode::Keep).map(|p| p.remove),
+            Some(names(&["player"]))
+        );
+        assert_eq!(
+            db.plan("viewer", Mode::Keep).map(|p| p.remove),
+            Some(names(&["viewer"]))
+        );
+    }
+
+    #[test]
+    fn what_a_removed_package_recommended_goes_with_it() {
+        let mut viewer = node("viewer", &[], Reason::Explicit);
+        viewer.recommends = names(&["codecs"]);
+        let db = PackageDb::new(vec![viewer, node("codecs", &[], Reason::Dependency)]);
+        assert_eq!(
+            db.plan("viewer", Mode::Keep).map(|p| p.remove),
+            Some(names(&["codecs", "viewer"]))
+        );
+    }
+
+    #[test]
+    fn an_essential_package_is_critical_whatever_its_name() {
+        let mut tar = node("tar", &[], Reason::Explicit);
+        tar.critical = true;
+        let db = PackageDb::new(vec![tar]);
+        assert_eq!(
+            db.plan("tar", Mode::Keep).map(|p| p.critical),
+            Some(names(&["tar"]))
+        );
     }
 }

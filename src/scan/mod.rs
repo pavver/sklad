@@ -2,9 +2,11 @@
 
 pub mod appstream;
 pub mod desktop;
+pub mod dpkg;
 pub mod flatpak;
 pub mod langs;
 pub mod loose;
+pub mod package;
 pub mod pacman;
 pub mod steam;
 pub mod system;
@@ -20,7 +22,7 @@ use crate::model::{Access, Evidence, Item, Launch, PackageSystem, Removal, Secti
 use crate::plan::PackageDb;
 use appstream::Metainfo;
 use desktop::Launcher;
-use pacman::Package;
+use package::Package;
 
 #[derive(Clone, Debug, Default)]
 pub struct Catalog {
@@ -194,7 +196,7 @@ fn package_item(
     );
     item.version = package.version.clone();
     item.summary = package.summary.clone();
-    item.description = package.summary.clone();
+    item.description = package.description.clone();
     item.licenses = package.licenses.clone();
     item.homepage = package.url.clone();
     item.developer = package.packager.clone().filter(|name| name != "Unknown Packager");
