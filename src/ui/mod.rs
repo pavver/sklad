@@ -22,6 +22,7 @@ use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
+use operator::combobox::{self, Combobox};
 use operator::content::{Pane, SplitPane, theme_toggle};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
@@ -286,24 +287,20 @@ impl App {
         let mut language = None;
         header(ui, text.app_name, Some(&subtitle), palette, |ui| {
             toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
-            let (english, ukrainian) = (Lang::Uk.text(), Lang::En.text());
-            let items = [
-                Segment::named(english.switch_mark, english.switch_language),
-                Segment::named(ukrainian.switch_mark, ukrainian.switch_language),
-            ];
-            let selected = usize::from(self.choice.lang == Lang::Uk);
-            let width = natural_width(ui, &items);
-            if let Some(choice) = segmented(
-                ui,
-                Id::unique("language"),
-                &items,
-                selected,
-                width,
-                dim::ROW_COMPACT,
-                palette,
-            ) {
-                language = Some(if choice == 0 { Lang::En } else { Lang::Uk });
+            let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
+            let selected = Lang::ALL
+                .iter()
+                .position(|&lang| lang == self.choice.lang)
+                .unwrap_or(0);
+            let choice = Combobox {
+                id: Id::unique("language"),
+                options: &names,
+                label: text.language,
+                no_matches: text.no_matches,
+                width: combobox::natural_width(ui, &names),
             }
+            .show(ui, selected, palette);
+            language = choice.and_then(|index| Lang::ALL.get(index).copied());
         });
         if toggled {
             self.dark = !self.dark;

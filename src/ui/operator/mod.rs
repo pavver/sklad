@@ -6,6 +6,7 @@
 
 pub mod button;
 pub mod code;
+pub mod combobox;
 pub mod content;
 pub mod data_table;
 pub mod dialog;

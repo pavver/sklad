@@ -127,7 +127,8 @@ cargo run --release
 - Sizes are the size of the files.
   On a compressed file system such as ZFS, less space is freed.
 - The language comes from the system.
-  The `EN` / `УК` button switches it and remembers the choice in `~/.config/sklad/language`.
+  The language choice in the header switches it and remembers it in `~/.config/sklad/language`.
+  A language is found by its own name or by its English one.
   Descriptions follow the language, so the catalogue is read again.
 
 ## Contributing

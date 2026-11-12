@@ -32,10 +32,15 @@ impl Lang {
         }
     }
 
-    pub fn other(self) -> Self {
+    /// Every language with a catalogue, in the order of the language choice.
+    pub const ALL: [Lang; 2] = [Lang::Uk, Lang::En];
+
+    /// The name in the language itself, then in English, so a search finds it either way.
+    /// English needs no second name.
+    pub fn name(self) -> &'static str {
         match self {
-            Lang::Uk => Lang::En,
-            Lang::En => Lang::Uk,
+            Lang::Uk => "Українська (Ukrainian)",
+            Lang::En => "English",
         }
     }
 
@@ -120,10 +125,10 @@ pub enum DateStyle {
 
 pub struct Text {
     pub app_name: &'static str,
-    /// Names the language the switch leads to, in that language.
-    pub switch_language: &'static str,
-    /// The short mark on the switch.
-    pub switch_mark: &'static str,
+    /// The name of the language choice.
+    pub language: &'static str,
+    /// Said by a list whose search found nothing.
+    pub no_matches: &'static str,
 
     pub reading_system: &'static str,
     pub nothing_found: &'static str,
@@ -307,10 +312,9 @@ mod tests {
     }
 
     #[test]
-    fn the_switch_of_each_language_names_the_other_one() {
-        assert_eq!(Lang::Uk.other(), Lang::En);
-        assert_eq!(Lang::En.other(), Lang::Uk);
-        assert_eq!(Lang::Uk.text().switch_language, "English");
-        assert_eq!(Lang::En.text().switch_language, "Українська");
+    fn a_language_is_found_by_its_own_name_and_by_its_english_one() {
+        let ukrainian = Lang::Uk.name().to_lowercase();
+        assert!(ukrainian.contains("українська") && ukrainian.contains("ukrainian"));
+        assert_eq!(Lang::En.name(), "English");
     }
 }

@@ -527,7 +527,7 @@ fn the_english_window_has_no_ukrainian_word_in_any_state() {
 }
 
 #[test]
-fn the_switch_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
+fn the_language_choice_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
     let asked = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&asked);
     let scanner: Scanner = Arc::new(move |lang| {
@@ -544,8 +544,12 @@ fn the_switch_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
             .query(By::new().role(Role::Button).label_contains("Оновити"))
             .is_some()
     );
+    // A click opens the list, and a click on an option chooses it.
+    harness.get(By::new().role(Role::ComboBox).label("Мова")).click();
+    settle(&mut harness);
+    shot(&mut harness, "language-open");
     harness
-        .get(By::new().role(Role::Tab).label_contains("English"))
+        .get(By::new().role(Role::ListBoxOption).label("English"))
         .click();
     settle(&mut harness);
     assert!(
@@ -562,9 +566,24 @@ fn the_switch_changes_the_words_and_reads_the_catalogue_in_the_new_language() {
         asked.lock().map(|log| log.clone()).ok(),
         Some(vec![Lang::Uk, Lang::En])
     );
+    // Typing the English name of a language finds it, and Enter chooses it.
     harness
-        .get(By::new().role(Role::Tab).label_contains("Українська"))
-        .click();
+        .get(By::new().role(Role::ComboBox).label("Language"))
+        .focus();
+    settle(&mut harness);
+    harness.key_press_modifiers(eframe::egui::Modifiers::COMMAND, eframe::egui::Key::A);
+    settle(&mut harness);
+    harness
+        .get(By::new().role(Role::ComboBox).label("Language"))
+        .type_text("ukr");
+    settle(&mut harness);
+    shot(&mut harness, "language-found");
+    assert!(
+        harness
+            .query(By::new().role(Role::ListBoxOption).label("English"))
+            .is_none()
+    );
+    harness.key_press(eframe::egui::Key::Enter);
     settle(&mut harness);
     assert!(
         harness

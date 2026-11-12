@@ -23,6 +23,7 @@ macro_rules! imported {
 }
 
 pub const ARROW_DOWNWARD: Icon = Icon::System(&ds::ARROW_DOWNWARD);
+pub const ARROW_DROP_DOWN: Icon = Icon::System(&ds::ARROW_DROP_DOWN);
 pub const ARROW_UPWARD: Icon = Icon::System(&ds::ARROW_UPWARD);
 pub const CHECK: Icon = Icon::System(&ds::CHECK);
 pub const CHECK_CIRCLE: Icon = Icon::System(&ds::CHECK_CIRCLE);

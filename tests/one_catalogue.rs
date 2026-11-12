@@ -43,14 +43,12 @@ fn no_interface_word_lies_outside_the_catalogue() -> std::io::Result<()> {
     Ok(())
 }
 
-/// Only the name of the other language, on the switch, is written in it.
 #[test]
 fn the_english_catalogue_is_english() -> std::io::Result<()> {
     let text = fs::read_to_string("src/i18n/en.rs")?;
     let strays: Vec<&str> = text
         .lines()
         .filter(|line| line.chars().any(is_ukrainian))
-        .filter(|line| !line.contains("switch_language") && !line.contains("switch_mark"))
         .collect();
     assert!(strays.is_empty(), "{strays:?}");
     Ok(())

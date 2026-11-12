@@ -18,10 +18,6 @@ impl<'a> Segment<'a> {
     pub fn new(text: &'a str) -> Self {
         Self { text, name: text }
     }
-
-    pub fn named(text: &'a str, name: &'a str) -> Self {
-        Self { text, name }
-    }
 }
 
 /// The width at which every item holds its text: equal items, as wide as the widest one.

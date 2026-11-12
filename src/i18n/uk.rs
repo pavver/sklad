@@ -58,8 +58,8 @@ fn packages(count: usize) -> String {
 
 pub static TEXT: Text = Text {
     app_name: "Склад",
-    switch_language: "English",
-    switch_mark: "EN",
+    language: "Мова",
+    no_matches: "Нічого не знайдено",
 
     reading_system: "Читаю систему…",
     nothing_found: "Нічого не знайдено. Змініть пошук або фільтри.",

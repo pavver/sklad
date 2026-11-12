@@ -44,8 +44,8 @@ fn source(kind: SourceKind) -> &'static str {
 
 pub static TEXT: Text = Text {
     app_name: "Sklad",
-    switch_language: "Українська",
-    switch_mark: "УК",
+    language: "Language",
+    no_matches: "No matches",
 
     reading_system: "Reading the system…",
     nothing_found: "Nothing found. Change the search or the filters.",
