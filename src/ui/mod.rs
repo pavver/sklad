@@ -362,35 +362,34 @@ impl App {
                     .look(look)
                     .show(ui, palette)
                     .clicked();
-            },
-            |ui| {
-                let room = ui.available_width() * 0.5;
-                let field = SearchField {
-                    id: Id::unique("search"),
-                    placeholder: text.search,
-                    clear_label: text.clear_search,
-                    height: dim::ROW_COMPACT,
-                    width: room.clamp(du(40.0), du(80.0)),
-                };
-                query = field.show(ui, &mut self.view.query, palette);
                 let origins = origins(text);
                 let items = origins.map(|(_, label)| Segment::new(label));
                 let current = origins
                     .iter()
                     .position(|(origin, _)| *origin == self.view.origin)
                     .unwrap_or(0);
-                let width = natural_width(ui, &items);
+                let filter_width = natural_width(ui, &items);
+                let gap = ui.spacing().item_spacing.x;
+                let field = SearchField {
+                    id: Id::unique("search"),
+                    placeholder: text.search,
+                    clear_label: text.clear_search,
+                    height: dim::ROW_COMPACT,
+                    width: (ui.available_width() - filter_width - gap).clamp(0.0, du(80.0)),
+                };
+                query = field.show(ui, &mut self.view.query, palette);
                 origin = segmented(
                     ui,
                     Id::unique("origin"),
                     &items,
                     current,
-                    width,
+                    filter_width,
                     dim::ROW_COMPACT,
                     palette,
                 )
                 .map(|choice| origins[choice].0);
             },
+            |_| {},
         );
         if refresh && self.scanning.is_none() {
             self.rescan(ui.ctx());
