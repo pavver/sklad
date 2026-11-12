@@ -50,7 +50,7 @@ Their specifications may still change, so expect to rework them when the design 
 
 ## Behavior
 
-* Follow the states specification of the design system (`docs/foundations/states.md`) for every interactive component.
+* Follow the [states specification](https://github.com/pavver/operator-design-system/blob/c69e965644fc1825a3f25eecb1caedf27e807c2d/docs/foundations/states.md) of the design system for every interactive component.
 * Pending blocks input, results do not, errors roll back with the same animation as the forward change.
 
 ## Rust

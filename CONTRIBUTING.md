@@ -29,3 +29,17 @@ The pictures in `docs/screenshots` come from an invented catalogue, so they show
 ```sh
 cargo test --test readme_pictures -- --ignored
 ```
+
+## Releases
+
+A release is a tag `vX.Y.Z` on `main`.
+Before tagging, the same version goes into `Cargo.toml`, `packaging/arch/PKGBUILD` and a new `<release>` of `packaging/io.github.pavver.sklad.metainfo.xml`; `tests/repository.rs` refuses versions that differ.
+
+```sh
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The tag starts `.github/workflows/release.yml`.
+It builds the package in an Arch Linux container, signs it with the key in the `PACKAGER_GPG_KEY` secret, publishes a GitHub release, and refreshes the website on GitHub Pages together with the pacman repository under `/x86_64/`.
+The public half of the key is `packaging/sklad.asc`.
