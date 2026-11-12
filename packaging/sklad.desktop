@@ -2,9 +2,13 @@
 Type=Application
 Name=Sklad
 Name[uk]=Склад
+GenericName=Installed Software Catalogue
+GenericName[uk]=Каталог встановленого
 Comment=Catalogue of everything installed, with safe removal
 Comment[uk]=Каталог усього встановленого з безпечним видаленням
 Exec=sklad
 Icon=sklad
 Terminal=false
 Categories=System;PackageManager;
+Keywords=uninstall;remove;cleanup;package;pacman;aur;flatpak;steam;orphan;disk;space;
+Keywords[uk]=видалити;видалення;очищення;пакет;pacman;aur;flatpak;steam;непотрібні;диск;місце;

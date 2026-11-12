@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.pavver.sklad</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Sklad</name>
+  <name xml:lang="uk">Склад</name>
+  <summary>See everything installed and remove what you no longer need</summary>
+  <summary xml:lang="uk">Усе встановлене в одному списку та безпечне видалення непотрібного</summary>
+  <developer id="io.github.pavver">
+    <name>pavver</name>
+  </developer>
+  <description>
+    <p>
+      Sklad puts everything installed on an Arch Linux system in one list: pacman and AUR packages, Flatpak
+      applications, Steam games, Rust toolchains, Cargo, npm, pnpm and Python tools, and loose files.
+      Sort by last launch to find what has gone unused, read what it is, and remove it with a command you can see
+      first.
+    </p>
+    <p xml:lang="uk">
+      Склад показує все встановлене в системі Arch Linux одним списком: пакети pacman і AUR, програми Flatpak,
+      ігри Steam, інструментарії Rust, інструменти Cargo, npm, pnpm і Python та файли поза менеджерами пакетів.
+      Сортування за останнім запуском показує, чим ви давно не користувалися, а видалення відбувається командою,
+      яку видно наперед.
+    </p>
+    <ul>
+      <li>One catalogue of programs, console tools, libraries, fonts, drivers and metapackages</li>
+      <li xml:lang="uk">Один каталог програм, консольних інструментів, бібліотек, шрифтів, драйверів і метапакетів</li>
+      <li>Last launch from the Plasma log and Steam</li>
+      <li xml:lang="uk">Останній запуск за журналом Plasma і даними Steam</li>
+      <li>Unneeded dependencies and packages you installed yourself, apart</li>
+      <li xml:lang="uk">Окремо непотрібні залежності та пакети, встановлені вами</li>
+      <li>Removal of a program out of a metapackage, keeping the rest</li>
+      <li xml:lang="uk">Видалення програми з метапакета, решта лишається</li>
+      <li>The exact command on screen before anything runs</li>
+      <li xml:lang="uk">Точна команда на екрані, перш ніж щось запуститься</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">sklad.desktop</launchable>
+  <icon type="stock">sklad</icon>
+  <url type="homepage">https://pavver.github.io/sklad/</url>
+  <url type="vcs-browser">https://github.com/pavver/sklad</url>
+  <url type="bugtracker">https://github.com/pavver/sklad/issues</url>
+  <categories>
+    <category>System</category>
+    <category>PackageManager</category>
+  </categories>
+  <keywords>
+    <keyword>uninstall</keyword>
+    <keyword>cleanup</keyword>
+    <keyword>pacman</keyword>
+    <keyword>AUR</keyword>
+    <keyword>Flatpak</keyword>
+    <keyword>orphan packages</keyword>
+    <keyword>disk space</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The catalogue with the card of a program</caption>
+      <image>https://raw.githubusercontent.com/pavver/sklad/main/docs/screenshots/en-catalogue.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Removing a program held by a metapackage</caption>
+      <image>https://raw.githubusercontent.com/pavver/sklad/main/docs/screenshots/en-removal.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Rust toolchains in the light theme</caption>
+      <image>https://raw.githubusercontent.com/pavver/sklad/main/docs/screenshots/en-tools.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <display_length compare="ge">1100</display_length>
+  </requires>
+  <releases>
+    <release version="0.2.0" date="2026-11-13">
+      <description>
+        <p>Program icons in the list, a Launch button, text that can be selected and copied, clearer words, and a
+        password prompt for system Flatpak removals.</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-11-06"/>
+  </releases>
+</component>
