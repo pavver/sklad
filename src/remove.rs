@@ -90,18 +90,15 @@ pub fn other_spec(removal: &Removal) -> Option<Spec> {
     match removal {
         Removal::Pacman | Removal::Unavailable { .. } => None,
         Removal::Manager { argv, access, .. } => Some(manager_spec(argv, *access)),
+        // `--noninteractive` also forbids the polkit dialog flatpak would raise for a system
+        // installation, so that one runs through pkexec like any other command for root.
         Removal::Flatpak { app_id, scope } => {
-            let scope = match scope {
-                FlatpakScope::System => "--system",
-                FlatpakScope::User => "--user",
+            let (flag, access) = match scope {
+                FlatpakScope::System => ("--system", Access::Root),
+                FlatpakScope::User => ("--user", Access::User),
             };
-            Some(direct(&[
-                "flatpak",
-                "uninstall",
-                "--noninteractive",
-                scope,
-                app_id,
-            ]))
+            let argv = ["flatpak", "uninstall", "--noninteractive", flag, app_id].map(str::to_owned);
+            Some(manager_spec(&argv, access))
         }
         Removal::Steam { app_id } => Some(direct(&["xdg-open", &format!("steam://uninstall/{app_id}")])),
         Removal::Cargo { name } => Some(direct(&["cargo", "uninstall", name])),
@@ -341,6 +338,20 @@ mod tests {
         assert_eq!(
             spec.map(|s| s.shown),
             Some("gio trash -- '/home/me/.local/bin/my tool'".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_system_flatpak_asks_for_the_password() {
+        let removal = Removal::Flatpak {
+            app_id: "io.github.peazip.PeaZip".to_owned(),
+            scope: FlatpakScope::System,
+        };
+        let spec = other_spec(&removal);
+        assert_eq!(spec.as_ref().map(|s| s.argv[0].as_str()), Some("pkexec"));
+        assert_eq!(
+            spec.map(|s| s.shown),
+            Some("sudo flatpak uninstall --noninteractive --system io.github.peazip.PeaZip".to_owned())
         );
     }
 
