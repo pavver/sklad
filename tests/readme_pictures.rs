@@ -12,7 +12,9 @@ use eframe::egui::{self, Vec2};
 use egui_kittest::kittest::{By, Queryable};
 use egui_kittest::{Harness, HarnessBuilder};
 use sklad::i18n::{Choice, Lang};
-use sklad::model::{Access, Evidence, Item, Launch, PackageSystem, Reason, Removal, Section, Source, Usage};
+use sklad::model::{
+    Access, Evidence, Item, Launch, PackageSystem, Reason, Removal, Section, Source, SourceKind, Usage,
+};
 use sklad::plan::{Node, PackageDb};
 use sklad::remove::{Backend, Event, Failure, Outcome, Spec};
 use sklad::scan::Catalog;
@@ -322,6 +324,22 @@ fn click(harness: &mut Harness<'_, App>, label: &str) {
     settle(harness);
 }
 
+/// The sources lie at the end of the side bar, below the sections.
+fn scroll_side_bar_to_the_end(harness: &mut Harness<'_, App>) {
+    harness.event(egui::Event::PointerMoved(egui::pos2(120.0, 500.0)));
+    for _ in 0..20 {
+        harness.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -200.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+            source: egui::MouseWheelSource::Wheel,
+        });
+        harness.step();
+    }
+    settle(harness);
+}
+
 /// Takes the pointer out of the window first: it would light up a row and show on the picture.
 fn save(harness: &mut Harness<'_, App>, name: &str) -> Result<(), String> {
     harness.event(egui::Event::PointerGone);
@@ -370,7 +388,8 @@ fn pictures(lang: Lang) -> Result<(), String> {
 
     let mut harness = window(lang);
     click(&mut harness, text.dark_theme);
-    click(&mut harness, (text.section)(Section::Console));
+    scroll_side_bar_to_the_end(&mut harness);
+    click(&mut harness, (text.source)(SourceKind::Rustup));
     click(&mut harness, "Rust stable");
     save(&mut harness, &format!("{code}-tools.png"))
 }
