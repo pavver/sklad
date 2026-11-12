@@ -770,7 +770,7 @@ fn controls_of_one_bar_share_their_top_and_height() {
         .get(By::new().role(Role::Button).label_contains("Оновити"))
         .rect();
     let search = harness.get_by_role(Role::TextInput).rect();
-    let origin = harness.get_by_role_and_label(Role::Tab, "Сироти").rect();
+    let origin = harness.get_by_role_and_label(Role::Tab, "Непотрібні").rect();
     assert_eq!(refresh.height(), 32.0, "a toolbar command is 8 DU");
     assert_eq!(refresh.width(), refresh.height(), "an icon button is square");
     for other in [search, origin] {
@@ -876,7 +876,7 @@ fn every_kind_of_button_reacts_to_the_pointer() -> Result<(), String> {
         (Role::Button, "Видалити"),
         (Role::Button, "Мультимедіа"),
         (Role::Row, "Сервіс"),
-        (Role::Tab, "Сироти"),
+        (Role::Tab, "Непотрібні"),
     ];
     let mut still = Vec::new();
     for (role, target) in targets {

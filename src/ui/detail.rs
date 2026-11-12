@@ -28,9 +28,9 @@ const LINK_LIMIT: usize = 60;
 fn removal_note(item: &Item, text: &Text) -> &'static str {
     match &item.removal {
         Removal::Pacman => text.by_pacman,
-        Removal::Flatpak { .. } => "Flatpak",
+        Removal::Flatpak { .. } => text.by_flatpak,
         Removal::Steam { .. } => text.by_steam,
-        Removal::Cargo { .. } => "cargo uninstall",
+        Removal::Cargo { .. } => text.by_cargo,
         Removal::Manager { .. } => text.by_language_manager,
         Removal::Unavailable { .. } => text.not_removable_here,
         Removal::Files {

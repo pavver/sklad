@@ -38,7 +38,7 @@ fn source(kind: SourceKind) -> &'static str {
         SourceKind::Node => "Node.js",
         SourceKind::Python => "Python",
         SourceKind::Rustup => "Rustup",
-        SourceKind::Manual => "Manual",
+        SourceKind::Manual => "Outside managers",
     }
 }
 
@@ -60,20 +60,20 @@ pub static TEXT: Text = Text {
     },
 
     sort_by: "Sort by:",
-    sort_last_run: "Launch",
+    sort_last_run: "Last launch",
     sort_name: "Name",
     sort_size: "Size",
     sort_installed: "Installed",
     ascending: "Ascending",
     descending: "Descending",
     origin_all: "All",
-    origin_explicit: "Explicit",
+    origin_explicit: "Installed by you",
     origin_dependency: "Dependencies",
-    origin_orphans: "Orphans",
+    origin_orphans: "Unneeded",
 
     all_programs: "All programs",
     other: "Other",
-    everything: "Everything",
+    everything: "Everything installed",
     source_heading: "Source",
     all_sources: "All sources",
     section,
@@ -83,7 +83,7 @@ pub static TEXT: Text = Text {
     column_size: "Size",
     column_last_run: "Last launch",
 
-    badge_orphan: "Orphan",
+    badge_orphan: "Unneeded dependency",
     badge_running: "Running",
     key_version: "Version",
     key_package: "Package",
@@ -91,12 +91,12 @@ pub static TEXT: Text = Text {
     key_developer: "Developer",
     key_size: "Size",
     key_installed: "Installed",
-    key_reason: "Reason",
-    key_launch: "Launch",
+    key_reason: "How it got here",
+    key_launch: "Last launch",
     key_groups: "Groups",
-    key_removal: "Removal",
-    reason_explicit: "Explicit",
-    reason_dependency: "As a dependency",
+    key_removal: "How it is removed",
+    reason_explicit: "You installed it",
+    reason_dependency: "As a dependency of another package",
     heading_description: "Description",
     heading_launchers: "Launchers",
     heading_command: "Removal command",
@@ -109,12 +109,14 @@ pub static TEXT: Text = Text {
     launch_failed: |title| format!("Could not launch \"{title}\""),
     site: "Website",
     copy: "Copy",
-    by_pacman: "The pacman package manager",
-    by_steam: "The Steam client",
-    by_language_manager: "The package manager of the language",
-    not_removable_here: "Not available from this program",
-    files_to_bin: "Files go to the bin",
-    files_for_good: "Files go for good, a password is needed",
+    by_pacman: "Through the pacman package manager",
+    by_steam: "Through the Steam client",
+    by_language_manager: "Through the package manager of its language",
+    by_flatpak: "Through Flatpak",
+    by_cargo: "Through cargo",
+    not_removable_here: "Cannot be removed from here",
+    files_to_bin: "The files are moved to the bin",
+    files_for_good: "The files are deleted for good, a password is needed",
 
     size_units: ["B", "KB", "MB", "GB", "TB"],
     decimal_mark: '.',
@@ -128,9 +130,9 @@ pub static TEXT: Text = Text {
     no_record: "no record",
     running_now_long: "Running now",
     no_record_long: "No record. Plasma only sees launches from the menu, the panel and KRunner.",
-    not_tracked_long: "Not tracked for this kind of entry",
-    plasma_log: "Plasma log",
-    last_launch: |when, source| format!("{when}, source: {source}"),
+    not_tracked_long: "Launches of this kind of entry are not tracked",
+    plasma_log: "the Plasma log",
+    last_launch: |when, source| format!("{when}, according to {source}"),
 
     confirm_title: |title| format!("Remove \"{title}\"?"),
     other_list_refused: "pacman would remove a different list of packages, so nothing was done. Refresh the catalogue and try again.",
@@ -142,7 +144,7 @@ pub static TEXT: Text = Text {
     remove_with_them: "Remove together with them",
     held_by_meta: |metas, kept| {
         format!(
-            "The metapackage {metas} holds this program. It will be removed too, but it is only an empty wrapper. The rest of its packages stay in the system. Marked as explicitly installed: {kept}."
+            "The metapackage {metas} holds this program. It will be removed too, but it is only an empty wrapper. The rest of its packages stay in the system and are marked as installed by you: {kept}."
         )
     },
     critical_packages: |names| format!("The system may not start without these packages: {names}"),

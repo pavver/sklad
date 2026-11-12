@@ -187,6 +187,8 @@ pub struct Text {
     pub by_pacman: &'static str,
     pub by_steam: &'static str,
     pub by_language_manager: &'static str,
+    pub by_flatpak: &'static str,
+    pub by_cargo: &'static str,
     pub not_removable_here: &'static str,
     pub files_to_bin: &'static str,
     pub files_for_good: &'static str,
