@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 
-use crate::model::{Item, Reason, Section, SourceKind, Usage};
+use crate::model::{Item, PackageSystem, Reason, Section, SourceKind, Usage};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {
@@ -115,6 +115,23 @@ impl View {
             .filter(|item| scope.holds(item) && self.holds_apart_from_scope(item, &words))
             .count()
     }
+}
+
+/// The sources the side bar offers: those that can exist on this system and hold at least one
+/// entry, so the AUR never shows on Debian and an empty Steam never shows at all. The chosen one
+/// stays, so a filter does not vanish under the pointer when its last entry is removed.
+pub fn offered_sources(
+    items: &[Item],
+    system: Option<PackageSystem>,
+    chosen: Option<SourceKind>,
+) -> Vec<SourceKind> {
+    SourceKind::ALL
+        .into_iter()
+        .filter(|kind| {
+            let present = items.iter().any(|item| item.source.kind() == *kind);
+            chosen == Some(*kind) || (kind.fits(system) && present)
+        })
+        .collect()
 }
 
 /// When the last launch happened, for ordering. `None` means the question does not apply.
@@ -329,5 +346,42 @@ mod tests {
         };
         assert_eq!(view.count(&items, Scope::One(Section::Internet)), 1);
         assert_eq!(view.count(&items, Scope::One(Section::Games)), 0);
+    }
+
+    fn from(source: Source) -> Item {
+        Item {
+            source,
+            ..item("x", Section::Utilities, Usage::NotTracked)
+        }
+    }
+
+    #[test]
+    fn the_side_bar_offers_the_sources_this_system_can_hold_and_holds() {
+        let items = [
+            from(Source::Repo("extra".to_owned())),
+            from(Source::Aur),
+            from(Source::Flatpak),
+        ];
+        let arch = offered_sources(&items, Some(PackageSystem::Pacman), None);
+        assert_eq!(arch, [SourceKind::Repo, SourceKind::Aur, SourceKind::Flatpak]);
+        let debian = offered_sources(&items, Some(PackageSystem::Dpkg), None);
+        assert_eq!(
+            debian,
+            [SourceKind::Repo, SourceKind::Flatpak],
+            "no AUR outside Arch"
+        );
+        let bare = offered_sources(&items, None, None);
+        assert_eq!(
+            bare,
+            [SourceKind::Flatpak],
+            "no repositories without a package system"
+        );
+    }
+
+    #[test]
+    fn a_chosen_source_stays_after_its_last_entry_is_gone() {
+        let items = [from(Source::Flatpak)];
+        let offered = offered_sources(&items, Some(PackageSystem::Pacman), Some(SourceKind::Steam));
+        assert_eq!(offered, [SourceKind::Flatpak, SourceKind::Steam]);
     }
 }

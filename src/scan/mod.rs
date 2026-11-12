@@ -7,6 +7,7 @@ pub mod langs;
 pub mod loose;
 pub mod pacman;
 pub mod steam;
+pub mod system;
 pub mod usage;
 
 use std::collections::{HashMap, HashSet};
@@ -15,7 +16,7 @@ use std::process::Command;
 
 use crate::i18n::{Lang, Text};
 use crate::icons::IconIndex;
-use crate::model::{Access, Evidence, Item, Launch, Removal, Section, Source, Usage};
+use crate::model::{Access, Evidence, Item, Launch, PackageSystem, Removal, Section, Source, Usage};
 use crate::plan::PackageDb;
 use appstream::Metainfo;
 use desktop::Launcher;
@@ -25,6 +26,8 @@ use pacman::Package;
 pub struct Catalog {
     pub items: Vec<Item>,
     pub db: PackageDb,
+    /// The package system of the distribution, `None` when there is none the catalogue reads.
+    pub system: Option<PackageSystem>,
 }
 
 /// The places the scan reads, so a test can point it elsewhere.
@@ -32,6 +35,8 @@ pub struct Catalog {
 pub struct Places {
     pub home: PathBuf,
     pub pacman_local: PathBuf,
+    pub dpkg_status: PathBuf,
+    pub os_release: PathBuf,
     pub root: PathBuf,
 }
 
@@ -40,6 +45,8 @@ impl Places {
         Self {
             home: std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default(),
             pacman_local: PathBuf::from("/var/lib/pacman/local"),
+            dpkg_status: PathBuf::from("/var/lib/dpkg/status"),
+            os_release: PathBuf::from("/etc/os-release"),
             root: PathBuf::from("/"),
         }
     }
@@ -447,8 +454,15 @@ fn join_launcher(item: &mut Item, launcher: &Launcher, path: &Path, context: &Co
 
 pub fn run(places: &Places, lang: Lang) -> Catalog {
     let running = usage::running_programs();
-    let packages = pacman::read_all(&places.pacman_local, &running);
-    let repositories = pacman::parse_repositories(&capture("pacman", &["-Sl"]));
+    let system = system::detect(places);
+    // Debian packages are read in a later step; until then such a system shows the other sources.
+    let (packages, repositories) = match system {
+        Some(PackageSystem::Pacman) => (
+            pacman::read_all(&places.pacman_local, &running),
+            pacman::parse_repositories(&capture("pacman", &["-Sl"])),
+        ),
+        Some(PackageSystem::Dpkg) | None => (Vec::new(), HashMap::new()),
+    };
     let icons = IconIndex::build(places);
     let records = usage::plasma_launches(
         &places
@@ -507,5 +521,5 @@ pub fn run(places: &Places, lang: Lang) -> Catalog {
     items.extend(languages.items);
     items.extend(manual.items);
     let items = items.into_iter().map(Item::seal).collect();
-    Catalog { items, db }
+    Catalog { items, db, system }
 }

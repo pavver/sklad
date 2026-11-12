@@ -393,7 +393,10 @@ impl App {
             self.scope_row(ui, icon::INVENTORY_2, text.everything, Scope::Everything, palette);
             Self::group(ui, text.source_heading, palette);
             self.source_row(ui, None, palette);
-            for kind in SourceKind::ALL {
+            let offered = self.catalog.as_ref().map_or_else(Vec::new, |catalog| {
+                view::offered_sources(&catalog.items, catalog.system, self.view.source)
+            });
+            for kind in offered {
                 self.source_row(ui, Some(kind), palette);
             }
         });

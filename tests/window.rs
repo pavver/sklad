@@ -12,7 +12,7 @@ use eframe::egui::accesskit::Role;
 use egui_kittest::kittest::{By, NodeT, Queryable};
 use egui_kittest::{Harness, HarnessBuilder};
 use sklad::i18n::{Choice, Lang};
-use sklad::model::{Evidence, Item, Launch, Reason, Removal, Section, Source, Usage};
+use sklad::model::{Evidence, Item, Launch, PackageSystem, Reason, Removal, Section, Source, Usage};
 use sklad::plan::{Node, PackageDb};
 use sklad::remove::{Backend, Event, Failure, Outcome, Spec};
 use sklad::scan::Catalog;
@@ -178,6 +178,7 @@ fn catalog() -> Catalog {
             node("systemd-app", &["systemd"], Reason::Explicit, false),
             node("systemd", &[], Reason::Dependency, false),
         ]),
+        system: Some(PackageSystem::Pacman),
     }
 }
 
@@ -916,6 +917,7 @@ fn long_catalog() -> Catalog {
     Catalog {
         items,
         db: PackageDb::new(nodes),
+        system: Some(PackageSystem::Pacman),
     }
 }
 

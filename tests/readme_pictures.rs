@@ -12,7 +12,7 @@ use eframe::egui::{self, Vec2};
 use egui_kittest::kittest::{By, Queryable};
 use egui_kittest::{Harness, HarnessBuilder};
 use sklad::i18n::{Choice, Lang};
-use sklad::model::{Access, Evidence, Item, Launch, Reason, Removal, Section, Source, Usage};
+use sklad::model::{Access, Evidence, Item, Launch, PackageSystem, Reason, Removal, Section, Source, Usage};
 use sklad::plan::{Node, PackageDb};
 use sklad::remove::{Backend, Event, Failure, Outcome, Spec};
 use sklad::scan::Catalog;
@@ -294,6 +294,7 @@ fn demo(lang: Lang) -> Catalog {
     Catalog {
         items,
         db: PackageDb::new(nodes),
+        system: Some(PackageSystem::Pacman),
     }
 }
 

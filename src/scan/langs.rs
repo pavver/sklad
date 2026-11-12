@@ -516,6 +516,8 @@ mod tests {
             Places {
                 home: self.base.join("home"),
                 pacman_local: self.base.join("pacman"),
+                dpkg_status: self.base.join("dpkg/status"),
+                os_release: self.base.join("os-release"),
                 root: self.base.join("root"),
             }
         }

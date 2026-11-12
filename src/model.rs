@@ -16,6 +16,15 @@ pub enum Source {
     Manual,
 }
 
+/// The package manager a distribution is built on. Sources that belong to one appear only there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PackageSystem {
+    /// Arch Linux and the distributions based on it.
+    Pacman,
+    /// Debian, Ubuntu and the distributions based on them.
+    Dpkg,
+}
+
 /// `Source` without its payload, for the filter in the side bar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SourceKind {
@@ -58,6 +67,16 @@ impl SourceKind {
         SourceKind::Rustup,
         SourceKind::Manual,
     ];
+
+    /// Whether the source can exist on a system built on `system`: the repositories need a package
+    /// system of the distribution, the AUR needs pacman, and the rest work anywhere.
+    pub fn fits(self, system: Option<PackageSystem>) -> bool {
+        match self {
+            SourceKind::Repo => system.is_some(),
+            SourceKind::Aur => system == Some(PackageSystem::Pacman),
+            _ => true,
+        }
+    }
 
     /// Language managers install command-line tools and libraries, never windowed programs.
     pub fn holds_only_tools(self) -> bool {
