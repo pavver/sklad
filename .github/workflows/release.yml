@@ -23,7 +23,7 @@ jobs:
     container: archlinux:base-devel
     steps:
       - name: Tools
-        run: pacman -Syu --noconfirm --needed git cargo github-cli
+        run: pacman -Syu --noconfirm --needed git rust rust-wasm trunk github-cli
       - uses: actions/checkout@v4
       - name: Build as an unprivileged user
         run: |
@@ -47,9 +47,9 @@ jobs:
           done
       - name: Repository database
         run: |
-          mkdir -p site/x86_64
-          cp build/*.pkg.tar.zst* site/x86_64/
-          cd site/x86_64
+          mkdir -p pages/x86_64
+          cp build/*.pkg.tar.zst* pages/x86_64/
+          cd pages/x86_64
           repo-add --sign sklad.db.tar.gz *.pkg.tar.zst
           # Pages serves no symbolic links, so the short names become copies.
           for link in sklad.db sklad.files sklad.db.sig sklad.files.sig; do
@@ -57,11 +57,10 @@ jobs:
           done
       - name: Project page
         run: |
-          cp -r docs/site/. site/
-          cp docs/screenshots/*.png site/
-          cp assets/sklad.svg site/
-          cp packaging/sklad.asc site/
-          ls -R site
+          # The page is built from Operator UI web components; it brings its own images and key.
+          scripts/build_site.sh
+          cp -r site/dist/. pages/
+          ls -R pages
       - name: GitHub release
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -72,7 +71,7 @@ jobs:
             --title "Sklad ${GITHUB_REF_NAME#v}" --generate-notes --verify-tag
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: pages
 
   deploy:
     needs: package

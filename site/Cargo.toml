@@ -1,0 +1,30 @@
+[package]
+name = "sklad-site"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+description = "The website of Sklad, built from Operator UI web components"
+publish = false
+
+# The site is a workspace of its own: it builds for wasm32 with Trunk, apart from the app.
+[workspace]
+
+[dependencies]
+operator-ui = { git = "https://github.com/pavver/operator-design-system", rev = "66afa5e61508a1b51fd98f59c211f820348d2b84" }
+leptos = { version = "0.8.22", features = ["csr"] }
+console_error_panic_hook = "0.1.7"
+web-sys = { version = "0.3.107", features = ["Document", "Element", "Location", "MediaQueryList", "Window"] }
+
+[lints.rust]
+dead_code = "deny"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1

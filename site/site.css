@@ -1,0 +1,27 @@
+/* Page layout only; every component brings its own styles through ThemeRoot. */
+
+@font-face {
+  font-family: "Cascadia Code";
+  src: local("Cascadia Code"), url("CascadiaCode.ttf") format("truetype");
+  font-weight: 200 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body { margin: 0; min-height: 100%; }
+body { background: #181818; }
+@media (prefers-color-scheme: light) { body { background: #ffffff; } }
+
+.site-root { min-height: 100vh; display: flex; flex-direction: column; }
+.site-root > .op-header { position: sticky; top: 0; z-index: 10; }
+.site-main { width: 100%; max-width: calc(var(--op-du) * 240); margin: 0 auto; padding: var(--op-dim-margin-screen); display: flex; flex-direction: column; gap: calc(var(--op-du) * 12); }
+.site-hero, .site-section, .site-step { display: flex; flex-direction: column; gap: var(--op-dim-pad-card); }
+.site-section { scroll-margin-top: calc(var(--op-du) * 16); }
+.site-step { gap: var(--op-dim-pad-tight); }
+.site-root h1, .site-root h2, .site-root p { margin: 0; }
+.site-lead { color: var(--op-text-secondary); max-width: 90ch; }
+.site-actions, .site-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--op-dim-gutter); }
+.site-shot { width: 100%; height: auto; display: block; box-shadow: inset 0 0 0 var(--op-dim-border) var(--op-border); }
+.site-answer { padding: 0 var(--op-dim-margin-screen) var(--op-dim-pad-card); color: var(--op-text-secondary); }
+.site-footer { width: 100%; max-width: calc(var(--op-du) * 240); margin: 0 auto; padding: var(--op-dim-margin-screen); }
+.site-muted { color: var(--op-text-secondary); }

@@ -83,11 +83,11 @@ curl -sL https://pavver.github.io/sklad/sklad.asc | sudo pacman-key --add -
 sudo pacman-key --lsign-key EB0FE0C7F0FEBBD1A40F8F93A7A3ED14D1C98D8D
 ```
 
-Додайте репозиторій у `/etc/pacman.conf`:
+Додайте репозиторій у `/etc/pacman.conf`; якщо він там уже є, команда нічого не змінить:
 
-```ini
-[sklad]
-Server = https://pavver.github.io/sklad/$arch
+```sh
+grep -q '^\[sklad\]' /etc/pacman.conf ||
+  printf '\n[sklad]\nServer = https://pavver.github.io/sklad/$arch\n' | sudo tee -a /etc/pacman.conf >/dev/null
 ```
 
 І встановіть; оновлення прийдуть разом із `pacman -Syu`:

@@ -83,11 +83,11 @@ curl -sL https://pavver.github.io/sklad/sklad.asc | sudo pacman-key --add -
 sudo pacman-key --lsign-key EB0FE0C7F0FEBBD1A40F8F93A7A3ED14D1C98D8D
 ```
 
-Add the repository to `/etc/pacman.conf`:
+Add the repository to `/etc/pacman.conf`; the command does nothing if it is already there:
 
-```ini
-[sklad]
-Server = https://pavver.github.io/sklad/$arch
+```sh
+grep -q '^\[sklad\]' /etc/pacman.conf ||
+  printf '\n[sklad]\nServer = https://pavver.github.io/sklad/$arch\n' | sudo tee -a /etc/pacman.conf >/dev/null
 ```
 
 Then install it; updates come with `pacman -Syu`:

@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Folders that are built or kept by tools rather than written.
-const SKIPPED: [&str; 2] = [".git", "target"];
+const SKIPPED: [&str; 3] = [".git", "target", "dist"];
 
 /// Text files that the checks read; binary assets have nothing to find.
 const TEXT: [&str; 15] = [
@@ -175,7 +175,20 @@ fn no_file_is_large_enough_to_be_a_mistake() -> std::io::Result<()> {
 /// A dependency from a local folder or an unpinned branch builds only on the machine that has it.
 #[test]
 fn every_dependency_comes_from_a_registry_or_a_pinned_public_commit() -> std::io::Result<()> {
-    let manifest = fs::read_to_string("Cargo.toml")?;
+    let mut found = Vec::new();
+    for manifest in MANIFESTS {
+        let manifest = fs::read_to_string(manifest)?;
+        found.extend(local_dependencies(&manifest));
+    }
+    report("dependencies that only build here", &found);
+    Ok(())
+}
+
+/// The manifests of the app and of the website.
+const MANIFESTS: [&str; 2] = ["Cargo.toml", "site/Cargo.toml"];
+
+/// Lines of a manifest that take a crate from a local folder, a patch, or an unpinned repository.
+fn local_dependencies(manifest: &str) -> Vec<String> {
     let mut found = Vec::new();
     for line in manifest.lines() {
         let line = line.trim();
@@ -188,8 +201,7 @@ fn every_dependency_comes_from_a_registry_or_a_pinned_public_commit() -> std::io
             found.push(line.to_owned());
         }
     }
-    report("dependencies that only build here", &found);
-    Ok(())
+    found
 }
 
 /// Markdown links to files of the repository stay relative, so they work in forks and on any branch.
@@ -216,6 +228,12 @@ fn the_checks_see_what_they_look_for() {
     assert!(has_secret(&format!("token = \"ghp_{}\"", "a".repeat(36))));
     assert!(has_secret(&format!("-----BEGIN OPENSSH {}", "PRIVATE KEY-----")));
     assert!(!has_secret("the tokens crate, sk-ant- alone"));
+    assert_eq!(local_dependencies("ui = { path = \"../ui\" }").len(), 1);
+    assert_eq!(
+        local_dependencies("ui = { git = \"https://github.com/a/b\" }").len(),
+        1
+    );
+    assert!(local_dependencies("ui = { git = \"https://github.com/a/b\", rev = \"1\" }").is_empty());
 }
 
 /// The value after `key` up to the closing quote, on the first line that has it.
@@ -243,5 +261,16 @@ fn every_place_names_the_same_version() -> std::io::Result<()> {
         crate_version, latest_release,
         "the newest release of the metainfo"
     );
+    let site = fs::read_to_string("site/Cargo.toml")?;
+    assert_eq!(
+        crate_version,
+        quoted_after(&site, "\nversion = \""),
+        "the website crate"
+    );
+    for page in ["site/index.html", "site/uk.html"] {
+        let page_text = fs::read_to_string(page)?;
+        let page_version = quoted_after(&page_text, "\"softwareVersion\": \"");
+        assert_eq!(crate_version, page_version, "{page}");
+    }
     Ok(())
 }
