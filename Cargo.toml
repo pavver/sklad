@@ -1,13 +1,13 @@
 [package]
 name = "sklad"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
-description = "Desktop app for Arch Linux: everything installed in one list, from any source, with safe removal"
+description = "Desktop app for Arch Linux, Debian and Ubuntu: everything installed in one list, from any source, with safe removal"
 homepage = "https://pavver.github.io/sklad/"
 repository = "https://github.com/pavver/sklad"
 readme = "README.md"
-keywords = ["arch-linux", "pacman", "uninstaller", "egui", "cleanup"]
+keywords = ["arch-linux", "debian", "pacman", "apt", "uninstaller"]
 categories = ["gui", "os::linux-apis"]
 
 [dependencies]
