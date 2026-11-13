@@ -52,7 +52,9 @@
 | Cargo | записи `cargo install` | `cargo uninstall` |
 | Node.js | глобальні пакети npm і pnpm | `npm uninstall -g`, `pnpm remove -g` |
 | Python | `pip --user`, pipx, інструменти й інтерпретатори uv | менеджер, який це встановив |
+| Середовища Python | середовища virtualenvwrapper, pyenv, conda і mamba | уся тека в кошик |
 | Rustup | інструментарії | `rustup toolchain uninstall` |
+| Docker | контейнери, образи й томи | `docker container rm`, `docker image rm`, `docker volume rm` |
 | Поза менеджерами | `~/.local/bin`, `/usr/local/bin`, `/opt`, ваші ярлики | файли з домашньої теки в кошик, системні безповоротно |
 
 Записи Python у системній теці, якими не володіє жоден пакет, показуються, але видалення звідси вимкнено.

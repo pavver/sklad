@@ -52,7 +52,9 @@ It is a graphical way to find unused packages, orphan dependencies and forgotten
 | Cargo | `cargo install` records | `cargo uninstall` |
 | Node.js | npm and pnpm global packages | `npm uninstall -g`, `pnpm remove -g` |
 | Python | `pip --user`, pipx, uv tools, uv interpreters | the manager that installed it |
+| Python environments | virtualenvwrapper, pyenv, conda and mamba environments | the whole folder to the bin |
 | Rustup | toolchains | `rustup toolchain uninstall` |
+| Docker | containers, images and volumes | `docker container rm`, `docker image rm`, `docker volume rm` |
 | Outside managers | `~/.local/bin`, `/usr/local/bin`, `/opt`, your launchers | home files to the bin, system files for good |
 
 Python records in the system folder that no package owns are shown, but removing them from here is off.

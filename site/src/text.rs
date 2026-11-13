@@ -74,7 +74,7 @@ pub const EN: Text = Text {
     language_name: "English",
     dark_mode: "Dark mode",
     headline: "Everything installed on Arch Linux, Debian and Ubuntu, in one list. Remove what you no longer use.",
-    lead: "Package managers only tell you what they installed themselves. Sklad puts pacman, AUR and apt packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, and loose files in one list. Sort it by last launch, read what each entry is, and uninstall it with a command you see before it runs.",
+    lead: "Package managers only tell you what they installed themselves. Sklad puts pacman, AUR and apt packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, Python environments, Docker containers and images, and loose files in one list. Sort it by last launch, read what each entry is, and uninstall it with a command you see before it runs.",
     install_action: "Install from the pacman or apt repository",
     source_action: "Source on GitHub",
     catalogue_shot: "en-catalogue.png",
@@ -133,7 +133,7 @@ pub const EN: Text = Text {
         },
         Question {
             title: "How is it different from Pamac, Octopi, Synaptic or BleachBit?",
-            answer: "Pamac, Octopi and Synaptic manage the packages of the distribution, and BleachBit cleans caches. Sklad lists what pacman, the AUR, apt, Flatpak, Steam and language package managers installed, in one list, and removes each entry through the manager that installed it.",
+            answer: "Pamac, Octopi and Synaptic manage the packages of the distribution, and BleachBit cleans caches. Sklad lists what pacman, the AUR, apt, Flatpak, Steam, Docker and language package managers installed, in one list, and removes each entry through the manager that installed it.",
         },
         Question {
             title: "Does it need KDE Plasma?",
@@ -154,7 +154,7 @@ pub const UK: Text = Text {
     language_name: "Українська (Ukrainian)",
     dark_mode: "Темна тема",
     headline: "Усе встановлене в Arch Linux, Debian і Ubuntu одним списком. Видаляйте те, чим не користуєтеся.",
-    lead: "Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman, AUR і apt, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.",
+    lead: "Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman, AUR і apt, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python, середовища Python, контейнери й образи Docker та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.",
     install_action: "Встановити з репозиторію pacman або apt",
     source_action: "Код на GitHub",
     catalogue_shot: "uk-catalogue.png",
@@ -213,7 +213,7 @@ pub const UK: Text = Text {
         },
         Question {
             title: "Чим він відрізняється від Pamac, Octopi, Synaptic чи BleachBit?",
-            answer: "Pamac, Octopi і Synaptic керують пакетами дистрибутива, BleachBit чистить кеші. Склад показує встановлене через pacman, AUR, apt, Flatpak, Steam і менеджери пакетів мов в одному списку та видаляє кожен запис тим менеджером, який його встановив.",
+            answer: "Pamac, Octopi і Synaptic керують пакетами дистрибутива, BleachBit чистить кеші. Склад показує встановлене через pacman, AUR, apt, Flatpak, Steam, Docker і менеджери пакетів мов в одному списку та видаляє кожен запис тим менеджером, який його встановив.",
         },
         Question {
             title: "Чи потрібна KDE Plasma?",
