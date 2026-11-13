@@ -25,8 +25,8 @@ Their specifications may still change, so expect to rework them when the design 
 ## Language and Formatting
 
 * All files are written in English.
-  The exceptions are the Ukrainian interface text in [src/i18n](src/i18n), the Ukrainian test strings that check it, [README.uk.md](README.uk.md), and the Ukrainian website in [site/src/text.rs](site/src/text.rs) and [site/uk.html](site/uk.html).
-* Every word of the interface lives in [src/i18n](src/i18n), in both languages.
+  The exceptions are the interface text in [src/i18n](src/i18n) in each of its languages, the test strings that check it, [README.uk.md](README.uk.md), and the Ukrainian website in [site/src/text.rs](site/src/text.rs) and [site/uk.html](site/uk.html).
+* Every word of the interface lives in [src/i18n](src/i18n), in every language: Ukrainian, English, French and Russian.
 * The website in [site](site) is composed only from the `operator-ui` web components of the design system, pinned to the same commit; its CSS only lays the page out.
   [scripts/build_site.sh](scripts/build_site.sh) builds it with Trunk.
 * In Markdown files, every sentence is on its own line.

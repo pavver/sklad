@@ -7,6 +7,11 @@ sudo pacman-key --lsign-key EB0FE0C7F0FEBBD1A40F8F93A7A3ED14D1C98D8D";
 pub const ADD_REPOSITORY: &str = r"grep -q '^\[sklad\]' /etc/pacman.conf ||
   printf '\n[sklad]\nServer = https://pavver.github.io/sklad/$arch\n' | sudo tee -a /etc/pacman.conf >/dev/null";
 pub const INSTALL: &str = "sudo pacman -Sy sklad";
+/// Trusts the key and adds the apt repository; running it again changes nothing.
+pub const APT_ADD_REPOSITORY: &str = "curl -fsSL https://pavver.github.io/sklad/sklad.asc | sudo gpg --dearmor --yes -o /usr/share/keyrings/sklad.gpg
+echo 'deb [signed-by=/usr/share/keyrings/sklad.gpg] https://pavver.github.io/sklad/debian ./' |
+  sudo tee /etc/apt/sources.list.d/sklad.list >/dev/null";
+pub const APT_INSTALL: &str = "sudo apt update && sudo apt install sklad";
 pub const FROM_SOURCE: &str = "cargo install --git https://github.com/pavver/sklad";
 
 /// Each page in its language: the name in that language, then in English, so a search finds it
@@ -49,6 +54,10 @@ pub struct Text {
     pub removal_alt: &'static str,
     pub removal_text: &'static str,
     pub install_title: &'static str,
+    pub arch_tab: &'static str,
+    pub debian_tab: &'static str,
+    pub apt_add_repository: &'static str,
+    pub apt_install: &'static str,
     pub trust_key: &'static str,
     pub add_repository: &'static str,
     pub install: &'static str,
@@ -61,17 +70,17 @@ pub struct Text {
 
 pub const EN: Text = Text {
     name: "Sklad",
-    tagline: "Everything installed on Arch Linux, in one list",
+    tagline: "Everything installed on Arch Linux, Debian and Ubuntu, in one list",
     language_name: "English",
     dark_mode: "Dark mode",
-    headline: "Everything installed on Arch Linux, in one list. Remove what you no longer use.",
-    lead: "Package managers only tell you what they installed themselves. Sklad puts pacman and AUR packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, and loose files in one list. Sort it by last launch, read what each entry is, and uninstall it with a command you see before it runs.",
-    install_action: "Install from the pacman repository",
+    headline: "Everything installed on Arch Linux, Debian and Ubuntu, in one list. Remove what you no longer use.",
+    lead: "Package managers only tell you what they installed themselves. Sklad puts pacman, AUR and apt packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, and loose files in one list. Sort it by last launch, read what each entry is, and uninstall it with a command you see before it runs.",
+    install_action: "Install from the pacman or apt repository",
     source_action: "Source on GitHub",
     catalogue_shot: "en-catalogue.png",
     catalogue_alt: "The Sklad window: installed programs with icons, install date, size and last launch, and the card of the selected program",
     early_title: "Early version",
-    early_text: "Tested on Arch Linux with KDE Plasma on Wayland. Read the command the window shows before you confirm it.",
+    early_text: "Tested on Arch Linux with KDE Plasma on Wayland, and against apt on Debian and Ubuntu. Read the command the window shows before you confirm it.",
     features_title: "What it does",
     features: [
         Feature {
@@ -88,7 +97,7 @@ pub const EN: Text = Text {
         },
         Feature {
             title: "Safe removal",
-            text: "pacman -Rp checks the list first, and the exact command is always on screen.",
+            text: "pacman or apt checks the list first, and the exact command is always on screen.",
         },
         Feature {
             title: "Out of a metapackage",
@@ -106,8 +115,12 @@ pub const EN: Text = Text {
     removal_title: "Safe removal",
     removal_shot: "en-removal.png",
     removal_alt: "The Sklad removal dialog for a program held by a metapackage: the package list and the command",
-    removal_text: "The list of packages is computed on the dependency graph by the same rules as pacman -Rs, then pacman -Rp checks it. If the lists differ, nothing happens. Important system packages and files outside the home folder need a separate confirmation.",
+    removal_text: "The list of packages is computed on the dependency graph by the same rules as pacman -Rs or apt-get remove --auto-remove, then the package manager checks it. If the lists differ, nothing happens. Important system packages and files outside the home folder need a separate confirmation.",
     install_title: "Install",
+    arch_tab: "Arch Linux",
+    debian_tab: "Debian, Ubuntu",
+    apt_add_repository: "Trust the key and add the apt repository; it needs Debian 12, Ubuntu 22.04 or newer, and running the commands again changes nothing:",
+    apt_install: "Install it like any package; updates come with apt upgrade:",
     trust_key: "Trust the key that signs the packages, once:",
     add_repository: "Add the repository to /etc/pacman.conf; the command does nothing if it is already there:",
     install: "Install it like any package; updates come with pacman -Syu:",
@@ -115,12 +128,12 @@ pub const EN: Text = Text {
     questions_title: "Questions",
     questions: [
         Question {
-            title: "How do I find unused packages on Arch Linux?",
-            answer: "pacman -Qdtq lists orphan dependencies, but not the programs you installed and stopped using. Sklad sorts everything by the last launch Plasma and Steam recorded, so programs you have not opened for months come first.",
+            title: "How do I find unused packages on Arch Linux, Debian or Ubuntu?",
+            answer: "pacman -Qdtq and apt autoremove find orphan dependencies, but not the programs you installed and stopped using. Sklad sorts everything by the last launch Plasma and Steam recorded, so programs you have not opened for months come first.",
         },
         Question {
-            title: "How is it different from Pamac, Octopi or BleachBit?",
-            answer: "Pamac and Octopi manage pacman packages, and BleachBit cleans caches. Sklad lists what pacman, the AUR, Flatpak, Steam and language package managers installed, in one list, and removes each entry through the manager that installed it.",
+            title: "How is it different from Pamac, Octopi, Synaptic or BleachBit?",
+            answer: "Pamac, Octopi and Synaptic manage the packages of the distribution, and BleachBit cleans caches. Sklad lists what pacman, the AUR, apt, Flatpak, Steam and language package managers installed, in one list, and removes each entry through the manager that installed it.",
         },
         Question {
             title: "Does it need KDE Plasma?",
@@ -128,7 +141,7 @@ pub const EN: Text = Text {
         },
         Question {
             title: "Is it safe?",
-            answer: "Sklad removes nothing without showing the command, and pacman checks the list before it runs. It is an early version, so read the command before you confirm.",
+            answer: "Sklad removes nothing without showing the command, and pacman or apt checks the list before it runs. It is an early version, so read the command before you confirm.",
         },
     ],
     license: "MIT license",
@@ -137,17 +150,17 @@ pub const EN: Text = Text {
 
 pub const UK: Text = Text {
     name: "Склад",
-    tagline: "Усе встановлене в Arch Linux одним списком",
+    tagline: "Усе встановлене в Arch Linux, Debian і Ubuntu одним списком",
     language_name: "Українська (Ukrainian)",
     dark_mode: "Темна тема",
-    headline: "Усе встановлене в Arch Linux одним списком. Видаляйте те, чим не користуєтеся.",
-    lead: "Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman і AUR, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.",
-    install_action: "Встановити з репозиторію pacman",
+    headline: "Усе встановлене в Arch Linux, Debian і Ubuntu одним списком. Видаляйте те, чим не користуєтеся.",
+    lead: "Менеджери пакетів показують лише те, що встановили самі. Склад збирає в один список пакети pacman, AUR і apt, програми Flatpak, ігри Steam, інструментарії Rust, інструменти Cargo, npm і Python та файли поза менеджерами. Відсортуйте його за останнім запуском, прочитайте, що це таке, і видаліть командою, яку видно ще до запуску.",
+    install_action: "Встановити з репозиторію pacman або apt",
     source_action: "Код на GitHub",
     catalogue_shot: "uk-catalogue.png",
     catalogue_alt: "Вікно Складу: список встановлених програм з іконками, датою встановлення, розміром і останнім запуском та картка вибраної програми",
     early_title: "Рання версія",
-    early_text: "Перевірено в Arch Linux із KDE Plasma на Wayland. Читайте команду у вікні, перш ніж підтвердити.",
+    early_text: "Перевірено в Arch Linux із KDE Plasma на Wayland і звірено з apt у Debian та Ubuntu. Читайте команду у вікні, перш ніж підтвердити.",
     features_title: "Що він уміє",
     features: [
         Feature {
@@ -164,7 +177,7 @@ pub const UK: Text = Text {
         },
         Feature {
             title: "Безпечне видалення",
-            text: "Список спершу перевіряє pacman -Rp, а точна команда завжди на екрані.",
+            text: "Список спершу перевіряє pacman або apt, а точна команда завжди на екрані.",
         },
         Feature {
             title: "Видалення з метапакета",
@@ -182,8 +195,12 @@ pub const UK: Text = Text {
     removal_title: "Безпечне видалення",
     removal_shot: "uk-removal.png",
     removal_alt: "Вікно видалення Складу для програми з метапакета: список пакетів і команда",
-    removal_text: "Список пакетів рахується на графі залежностей за тими ж правилами, що й у pacman -Rs, а потім його перевіряє pacman -Rp. Якщо списки різняться, нічого не відбувається. Важливі системні пакети й файли поза домашньою текою потребують окремого підтвердження.",
+    removal_text: "Список пакетів рахується на графі залежностей за тими ж правилами, що й у pacman -Rs або apt-get remove --auto-remove, а потім його перевіряє менеджер пакетів. Якщо списки різняться, нічого не відбувається. Важливі системні пакети й файли поза домашньою текою потребують окремого підтвердження.",
     install_title: "Встановлення",
+    arch_tab: "Arch Linux",
+    debian_tab: "Debian, Ubuntu",
+    apt_add_repository: "Довірте ключ і додайте репозиторій apt; потрібні Debian 12, Ubuntu 22.04 або новіші, а повторний запуск команд нічого не змінить:",
+    apt_install: "Встановіть як звичайний пакет; оновлення прийдуть разом із apt upgrade:",
     trust_key: "Один раз довірте ключ, яким підписано пакети:",
     add_repository: "Додайте репозиторій у /etc/pacman.conf; якщо він там уже є, команда нічого не змінить:",
     install: "Встановіть як звичайний пакет; оновлення прийдуть разом із pacman -Syu:",
@@ -191,12 +208,12 @@ pub const UK: Text = Text {
     questions_title: "Питання",
     questions: [
         Question {
-            title: "Як знайти непотрібні пакети в Arch Linux?",
-            answer: "pacman -Qdtq покаже осиротілі залежності, але не програми, які ви встановили й закинули. Склад сортує все за останнім запуском, який записали Plasma і Steam, тож програми, яких ви не відкривали місяцями, будуть угорі.",
+            title: "Як знайти непотрібні пакети в Arch Linux, Debian чи Ubuntu?",
+            answer: "pacman -Qdtq і apt autoremove знайдуть осиротілі залежності, але не програми, які ви встановили й закинули. Склад сортує все за останнім запуском, який записали Plasma і Steam, тож програми, яких ви не відкривали місяцями, будуть угорі.",
         },
         Question {
-            title: "Чим він відрізняється від Pamac, Octopi чи BleachBit?",
-            answer: "Pamac і Octopi керують пакетами pacman, BleachBit чистить кеші. Склад показує встановлене через pacman, AUR, Flatpak, Steam і менеджери пакетів мов в одному списку та видаляє кожен запис тим менеджером, який його встановив.",
+            title: "Чим він відрізняється від Pamac, Octopi, Synaptic чи BleachBit?",
+            answer: "Pamac, Octopi і Synaptic керують пакетами дистрибутива, BleachBit чистить кеші. Склад показує встановлене через pacman, AUR, apt, Flatpak, Steam і менеджери пакетів мов в одному списку та видаляє кожен запис тим менеджером, який його встановив.",
         },
         Question {
             title: "Чи потрібна KDE Plasma?",
@@ -204,7 +221,7 @@ pub const UK: Text = Text {
         },
         Question {
             title: "Чи це безпечно?",
-            answer: "Склад нічого не видаляє, не показавши команду, а pacman перевіряє список ще до запуску. Це рання версія, тож читайте команду, перш ніж підтвердити.",
+            answer: "Склад нічого не видаляє, не показавши команду, а pacman або apt перевіряє список ще до запуску. Це рання версія, тож читайте команду, перш ніж підтвердити.",
         },
     ],
     license: "Ліцензія MIT",

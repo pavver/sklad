@@ -6,7 +6,10 @@ mod text;
 use leptos::prelude::*;
 use operator_ui::prelude::*;
 use operator_ui::tokens::icons;
-use text::{ADD_REPOSITORY, DESIGN_SYSTEM, EN, FROM_SOURCE, INSTALL, PAGES, REPOSITORY, TRUST_KEY, Text, UK};
+use text::{
+    ADD_REPOSITORY, APT_ADD_REPOSITORY, APT_INSTALL, DESIGN_SYSTEM, EN, FROM_SOURCE, INSTALL, PAGES,
+    REPOSITORY, TRUST_KEY, Text, UK,
+};
 
 /// The texts for the language of the page.
 fn page_text() -> &'static Text {
@@ -55,6 +58,7 @@ fn Page() -> impl IntoView {
     let text = page_text();
     let dark = RwSignal::new(prefers_dark());
     let language = RwSignal::new(text.language_name.to_owned());
+    let system = RwSignal::new(0usize);
     let features = text
         .features
         .iter()
@@ -149,9 +153,23 @@ fn Page() -> impl IntoView {
 
                 <section class="site-section" id="install">
                     <h2 class="op-t-section-title">{text.install_title}</h2>
-                    <Command caption=text.trust_key code=TRUST_KEY/>
-                    <Command caption=text.add_repository code=ADD_REPOSITORY/>
-                    <Command caption=text.install code=INSTALL/>
+                    <Tabs
+                        items=vec![TabItem::new(text.arch_tab), TabItem::new(text.debian_tab)]
+                        selected=system
+                    />
+                    <Show
+                        when=move || system.get() == 0
+                        fallback=move || {
+                            view! {
+                                <Command caption=text.apt_add_repository code=APT_ADD_REPOSITORY/>
+                                <Command caption=text.apt_install code=APT_INSTALL/>
+                            }
+                        }
+                    >
+                        <Command caption=text.trust_key code=TRUST_KEY/>
+                        <Command caption=text.add_repository code=ADD_REPOSITORY/>
+                        <Command caption=text.install code=INSTALL/>
+                    </Show>
                     <Command caption=text.from_source code=FROM_SOURCE/>
                 </section>
 
