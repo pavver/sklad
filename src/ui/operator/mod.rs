@@ -16,6 +16,7 @@ pub mod feedback;
 pub mod icon;
 pub mod layout;
 pub mod motion;
+pub mod row_place;
 pub mod search_field;
 pub mod segmented;
 pub mod split_pane;

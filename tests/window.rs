@@ -1490,3 +1490,46 @@ fn a_removal_changes_the_list_in_place_while_the_system_is_read_again() {
     );
     assert!(has_row(&harness, "Програма 07"));
 }
+
+#[test]
+fn rows_that_leave_above_do_not_move_the_list() {
+    let (scanner, release) = gated(long_catalog(), long_catalog_without(&["p02", "p03", "p25"]));
+    let size = Vec2::new(1360.0, 700.0);
+    let mut harness = window_speaking(FakeBackend::new(Outcome::Done), size, scanner, Lang::Uk);
+    settle(&mut harness);
+    let list = harness
+        .get_by_role_and_label(Role::Row, "Програма 03")
+        .rect()
+        .center();
+    harness.hover_at(list);
+    for _ in 0..5 {
+        harness.event(eframe::egui::Event::MouseWheel {
+            unit: eframe::egui::MouseWheelUnit::Point,
+            delta: Vec2::new(0.0, -100.0),
+            phase: eframe::egui::TouchPhase::Move,
+            modifiers: eframe::egui::Modifiers::NONE,
+            source: eframe::egui::MouseWheelSource::Wheel,
+        });
+        harness.step();
+    }
+    settle(&mut harness);
+    let scrolled = top_row(&harness);
+    assert!(
+        !has_row(&harness, "Програма 03"),
+        "the wheel scrolls past the rows that leave"
+    );
+    open_removal(&mut harness, "Програма 25");
+    confirm(&mut harness);
+    settle(&mut harness);
+    assert_eq!(top_row(&harness), scrolled, "the removed row was below the top");
+
+    let _ = release.send(());
+    settle(&mut harness);
+    settle(&mut harness);
+    shot(&mut harness, "rows-left-above");
+    assert_eq!(
+        top_row(&harness),
+        scrolled,
+        "two rows above left, and the list stays"
+    );
+}

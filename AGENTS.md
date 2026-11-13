@@ -18,7 +18,9 @@ The design system marks these components as Draft, and sklad uses them anyway:
 * `DataTable` ([src/ui/operator/data_table.rs](src/ui/operator/data_table.rs)): the catalogue table.
   It departs from the specification, with the maintainer's agreement: the first cell may lead with a square slot, which holds the `Avatar` of the program.
   That `Avatar` departs from its own specification too, with the same agreement: a Docker row, which has no image, shows the icon of its kind in place of the initial.
-  While the catalogue is read, the first time or again, the table shows no rows and fills its body with `Skeleton` rows in the shape of its own, where the specification keeps the old rows under the loading bar.
+  While the catalogue is read anew (the first time, by the refresh button, or in another language), the table shows no rows and fills its body with `Skeleton` rows in the shape of its own, where the specification keeps the old rows under the loading bar.
+  After a removal the catalogue is read quietly, as the specification has it: the rows stay under the loading bar and change in place.
+  When the rows change under the person that way, the table keeps the first row they saw where it was; the specification does not say what happens to the scroll.
 * `PropertyList` (in [src/ui/operator/content.rs](src/ui/operator/content.rs)): the facts on the card.
 * `Toolbar` (in [src/ui/operator/layout.rs](src/ui/operator/layout.rs)): the bar above the table; its overflow menu is not ported.
 

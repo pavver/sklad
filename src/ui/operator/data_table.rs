@@ -4,7 +4,8 @@
 //! Deviations, agreed with the maintainer: the first cell may lead with a square slot, `pad_card`
 //! before its text, as the leading slot of `ListItem`; the specification has text cells only.
 //! A table that loads with no rows fills its body with `Skeleton` rows in the shape of its own
-//! rows, where the specification shows the bar alone.
+//! rows, where the specification shows the bar alone. When its owner says the rows changed under
+//! the person, the table keeps the first row they saw where it was.
 
 use eframe::egui::{
     self, Align, CursorIcon, Id, Key, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
@@ -12,6 +13,7 @@ use eframe::egui::{
 
 use super::feedback::{paint_indeterminate, paint_skeleton, skeleton_share, skeleton_text_line};
 use super::icon::{self, paint_icon};
+use super::row_place::Place;
 use super::state::{BORDER, BORDER_THICK, hover_amount, paint_focus_ring};
 use super::text::{paint_aligned, truncated};
 use super::tokens::{Palette, Type, dim, du, mix, text, tint};
@@ -59,6 +61,11 @@ pub struct DataTable<'a> {
     pub loading: bool,
     /// The side, in DU, of a square slot leading the first cell; `None` for text alone.
     pub leading: Option<f32>,
+    /// What tells the rows apart across frames; `None` when the table need not follow them.
+    pub key: Option<&'a dyn Fn(usize) -> Id>,
+    /// The rows changed under the person: the first row they saw stays where it was, whatever
+    /// came or went above it.
+    pub keep_place: bool,
 }
 
 #[derive(Default)]
@@ -158,16 +165,32 @@ impl DataTable<'_> {
                 return;
             }
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            ScrollArea::vertical()
+            let place_id = self.id.with("place");
+            let mut area = ScrollArea::vertical()
                 .id_salt(self.id.with("body"))
-                .auto_shrink([false, false])
-                .show_rows(ui, ROW, self.rows, |ui, range| {
-                    for row in range {
-                        if self.row(ui, row, &spans, palette, &mut content) {
-                            events.activated = Some(row);
-                        }
+                .auto_shrink([false, false]);
+            if let Some(key) = self.key {
+                let place: Option<Place> = ui.data(|data| data.get_temp(place_id));
+                let offset = place
+                    .filter(|_| self.keep_place)
+                    .and_then(|place| place.offset_now(self.rows, key, ROW));
+                if let Some(offset) = offset {
+                    area = area.vertical_scroll_offset(offset);
+                }
+            }
+            let output = area.show_rows(ui, ROW, self.rows, |ui, range| {
+                for row in range.clone() {
+                    if self.row(ui, row, &spans, palette, &mut content) {
+                        events.activated = Some(row);
                     }
-                });
+                }
+                range
+            });
+            if let Some(key) = self.key {
+                let seen = output.inner.map(|row| (key(row), row)).collect();
+                let place = Place::new(output.state.clamped_offset().y, seen);
+                ui.data_mut(|data| data.insert_temp(place_id, place));
+            }
         });
         ui.painter().rect_stroke(
             outer,

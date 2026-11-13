@@ -70,6 +70,7 @@ impl App {
             selected: self.selection.as_ref().map(|selection| selection.id.as_str()),
             sorting: list::sorting_of(&self.view),
             loading: self.scanning.is_some(),
+            keep_place: std::mem::take(&mut self.changed_quietly),
             now,
             text: self.text(),
         };

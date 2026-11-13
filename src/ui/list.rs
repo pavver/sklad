@@ -47,6 +47,8 @@ pub struct Rows<'a> {
     pub selected: Option<&'a str>,
     pub sorting: Sorting,
     pub loading: bool,
+    /// The rows changed under the person; see `DataTable::keep_place`.
+    pub keep_place: bool,
     pub now: i64,
     pub text: &'static Text,
 }
@@ -101,6 +103,7 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Pal
     let selected = rows
         .selected
         .and_then(|id| rows.indices.iter().position(|&index| rows.items[index].id == id));
+    let key = |row: usize| Id::unique(&rows.items[rows.indices[row]].id);
     let table = DataTable {
         id: Id::unique("catalogue"),
         columns: &columns,
@@ -109,6 +112,8 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Pal
         selected,
         loading: rows.loading,
         leading: Some(dim::AVATAR_SMALL),
+        key: Some(&key),
+        keep_place: rows.keep_place,
     };
     let item = |row: usize| &rows.items[rows.indices[row]];
     let events = table.show(

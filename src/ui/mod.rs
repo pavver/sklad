@@ -67,6 +67,9 @@ pub struct App {
     backend: Arc<dyn Backend>,
     scanner: Scanner,
     scanning: Option<Scanning>,
+    /// The catalogue changed under the person since the list was last drawn: the list keeps its
+    /// place.
+    changed_quietly: bool,
     catalog: Option<Arc<Catalog>>,
     view: View,
     visible: Vec<usize>,
@@ -120,6 +123,7 @@ impl App {
             backend,
             scanner,
             scanning: None,
+            changed_quietly: false,
             catalog: None,
             view: View::default(),
             visible: Vec::new(),
@@ -190,6 +194,7 @@ impl App {
         if let Ok(catalog) = scanning.result.try_recv() {
             let reading = scanning.reading;
             self.scanning = None;
+            self.changed_quietly = reading == Reading::Quietly;
             self.catalog = Some(Arc::new(match (&self.catalog, reading) {
                 (Some(old), Reading::Quietly) => old.updated(catalog),
                 _ => catalog,
@@ -286,6 +291,7 @@ impl App {
     fn removed(&mut self, ctx: &egui::Context, gone: &[String]) {
         if let Some(catalog) = &self.catalog {
             self.catalog = Some(Arc::new(catalog.without(gone)));
+            self.changed_quietly = true;
             self.refilter();
         }
         self.rescan(ctx, Reading::Quietly);
