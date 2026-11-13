@@ -43,7 +43,10 @@ pub struct GroupItem<'a> {
     pub selected: bool,
 }
 
-/// The tiles, `gutter` apart, full width.
+/// The gap between tiles, in DU.
+const TILE_GAP: f32 = 0.75;
+
+/// The tiles, `0.75 DU` apart, full width.
 pub struct CheckboxGroup<'a> {
     pub id: Id,
     pub items: &'a [GroupItem<'a>],
@@ -58,7 +61,7 @@ impl CheckboxGroup<'_> {
         let mut clicked = None;
         for (index, item) in self.items.iter().enumerate() {
             if index > 0 {
-                ui.add_space(du(dim::GUTTER));
+                ui.add_space(du(TILE_GAP));
             }
             if self.tile(ui, index, item, palette) {
                 clicked = Some(index);
@@ -88,7 +91,7 @@ impl CheckboxGroup<'_> {
             paint_ripple(ui, &response, rect, true, palette);
 
             let large = self.icon_size == IconSize::Large && item.icon.is_some();
-            let pad = if large { dim::PAD_TIGHT } else { dim::MARGIN_SCREEN };
+            let pad = if large { dim::PAD_TIGHT } else { dim::GUTTER };
             let mut left = rect.left() + du(pad);
             let ink = if selected {
                 palette.accent
@@ -102,14 +105,20 @@ impl CheckboxGroup<'_> {
                 left += side + du(dim::GUTTER);
             }
 
-            let side = du(5.0);
-            let mut right = rect.right() - du(dim::MARGIN_SCREEN);
+            let side = du(dim::ICON_LARGE);
+            let mut right = rect.right() - du(dim::GUTTER);
             let boxed =
                 Rect::from_min_size(pos2(right - side, rect.center().y - side / 2.0), vec2(side, side));
             if selected {
                 ui.painter()
                     .rect_filled(boxed, 0.0, mix(palette.surface, palette.accent, 0.15));
-                paint_icon(ui, super::icon::CHECK, boxed.center(), du(3.0), palette.accent);
+                paint_icon(
+                    ui,
+                    super::icon::CHECK,
+                    boxed.center(),
+                    du(dim::ICON_SMALL),
+                    palette.accent,
+                );
             }
             let box_state = if selected {
                 ControlState::Selected
