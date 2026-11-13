@@ -1,5 +1,7 @@
 [build]
 dist = "dist"
+# GitHub Pages serves the site under /sklad/, so pages load their files relative to themselves.
+public_url = "./"
 
 [serve]
 addresses = ["127.0.0.1"]
