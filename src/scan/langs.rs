@@ -76,45 +76,48 @@ pub struct PythonPackage {
 pub fn parse_metadata(text: &str) -> Option<PythonPackage> {
     let mut package = PythonPackage::default();
     let mut expression = None;
-    for line in text.lines() {
-        if line.is_empty() {
-            break;
-        }
-        let Some((key, value)) = line.split_once(": ") else {
-            continue;
-        };
+    let headers = text
+        .lines()
+        .take_while(|line| !line.is_empty())
+        .filter_map(|line| line.split_once(": "));
+    for (key, value) in headers {
         let value = value.trim().to_owned();
-        let known = value != "UNKNOWN";
-        match key {
-            "Name" => package.name = value,
-            "Version" => package.version = value,
-            "Summary" if known => package.summary = value,
-            "License-Expression" => expression = Some(value),
-            "License" if known => package.license = Some(value),
-            "Home-page" if known => package.homepage = Some(value),
-            "Project-URL" => {
-                let url = value
-                    .split_once(", ")
-                    .filter(|(label, _)| label.eq_ignore_ascii_case("homepage"));
-                if let Some((_, url)) = url {
-                    package.homepage = Some(url.to_owned());
-                }
-            }
-            "Author" if known => package.author = Some(value),
-            "Author-email" if package.author.is_none() => {
-                let name = value
-                    .split(['<', ','])
-                    .next()
-                    .unwrap_or_default()
-                    .trim()
-                    .to_owned();
-                package.author = Some(name).filter(|name| !name.is_empty());
-            }
-            _ => {}
+        if key == "License-Expression" {
+            expression = Some(value);
+        } else {
+            read_header(&mut package, key, value);
         }
     }
     package.license = expression.or(package.license);
     (!package.name.is_empty()).then_some(package)
+}
+
+/// One header into the package. `UNKNOWN` means the field was left out.
+fn read_header(package: &mut PythonPackage, key: &str, value: String) {
+    let known = value != "UNKNOWN";
+    match key {
+        "Name" => package.name = value,
+        "Version" => package.version = value,
+        "Summary" if known => package.summary = value,
+        "License" if known => package.license = Some(value),
+        "Home-page" if known => package.homepage = Some(value),
+        "Project-URL" => package.homepage = project_homepage(&value).or(package.homepage.take()),
+        "Author" if known => package.author = Some(value),
+        "Author-email" if package.author.is_none() => package.author = author_name(&value),
+        _ => {}
+    }
+}
+
+/// The address of a `Project-URL` labelled as the homepage.
+fn project_homepage(value: &str) -> Option<String> {
+    let (label, url) = value.split_once(", ")?;
+    label.eq_ignore_ascii_case("homepage").then(|| url.to_owned())
+}
+
+/// The name before the address in `Author-email`, `Name <name@host>`.
+fn author_name(value: &str) -> Option<String> {
+    let name = value.split(['<', ',']).next().unwrap_or_default().trim();
+    (!name.is_empty()).then(|| name.to_owned())
 }
 
 fn is_python_record(path: &Path) -> bool {
