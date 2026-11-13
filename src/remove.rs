@@ -43,27 +43,37 @@ pub fn package_spec(plan: &Plan, system: PackageSystem) -> Spec {
     }
 }
 
-/// `--noconfirm` is safe here only because the list passed by name is the list the person saw:
-/// pacman refuses it if anything else would have to change.
-fn pacman_spec(plan: &Plan) -> Spec {
+/// One removal run as root in a shell, the kept packages marked as installed by hand first.
+/// `shown` is the command a person would type; `run` is the same with the flags that keep the
+/// manager from asking.
+fn root_spec(plan: &Plan, mark: &str, shown: &str, run: &str) -> Spec {
     let remove = quoted(&plan.remove);
-    let mark = quoted(&plan.keep);
-    let script = if plan.keep.is_empty() {
-        format!("pacman -Rn --noconfirm {remove}")
-    } else {
-        format!("pacman -D --asexplicit {mark} && pacman -Rn --noconfirm {remove}")
+    let steps = |sudo: &str, command: &str| {
+        let removal = format!("{sudo}{command} {remove}");
+        if plan.keep.is_empty() {
+            removal
+        } else {
+            format!("{sudo}{mark} {} && {removal}", quoted(&plan.keep))
+        }
     };
-    let shown = if plan.keep.is_empty() {
-        format!("sudo pacman -Rn {remove}")
-    } else {
-        format!("sudo pacman -D --asexplicit {mark} && sudo pacman -Rn {remove}")
-    };
+    let script = steps("", run);
     Spec {
         argv: ["pkexec", "/usr/bin/sh", "-c", script.as_str()]
             .map(str::to_owned)
             .to_vec(),
-        shown,
+        shown: steps("sudo ", shown),
     }
+}
+
+/// `--noconfirm` is safe here only because the list passed by name is the list the person saw:
+/// pacman refuses it if anything else would have to change.
+fn pacman_spec(plan: &Plan) -> Spec {
+    root_spec(
+        plan,
+        "pacman -D --asexplicit",
+        "pacman -Rn",
+        "pacman -Rn --noconfirm",
+    )
 }
 
 /// apt removes exactly the packages named, since the plan already holds everything that needs
@@ -71,25 +81,12 @@ fn pacman_spec(plan: &Plan) -> Spec {
 /// essential package without a flag nobody passes. Configuration files stay, as with
 /// `apt-get remove` by hand.
 fn apt_spec(plan: &Plan) -> Spec {
-    let remove = quoted(&plan.remove);
-    let mark = quoted(&plan.keep);
-    let apt = format!("DEBIAN_FRONTEND=noninteractive apt-get remove -y {remove}");
-    let script = if plan.keep.is_empty() {
-        apt
-    } else {
-        format!("apt-mark manual {mark} && {apt}")
-    };
-    let shown = if plan.keep.is_empty() {
-        format!("sudo apt-get remove {remove}")
-    } else {
-        format!("sudo apt-mark manual {mark} && sudo apt-get remove {remove}")
-    };
-    Spec {
-        argv: ["pkexec", "/usr/bin/sh", "-c", script.as_str()]
-            .map(str::to_owned)
-            .to_vec(),
-        shown,
-    }
+    root_spec(
+        plan,
+        "apt-mark manual",
+        "apt-get remove",
+        "DEBIAN_FRONTEND=noninteractive apt-get remove -y",
+    )
 }
 
 /// The packages `apt-get -s remove` would remove, from its `Remv` lines. A package it would
