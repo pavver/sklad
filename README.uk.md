@@ -14,7 +14,9 @@
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-E95420?logo=ubuntu&logoColor=white)
 ![egui](https://img.shields.io/badge/UI-egui-5a67d8)
 
-[Сайт](https://pavver.github.io/sklad/uk.html) · [English](README.md)
+Сайт: [English](https://pavver.github.io/sklad/) · [Українська](https://pavver.github.io/sklad/uk.html) · [Français](https://pavver.github.io/sklad/fr.html) · [Русский](https://pavver.github.io/sklad/ru.html)
+
+Readme: [English](README.md) · **Українська** · [Français](README.fr.md) · [Русский](README.ru.md)
 
 ![Каталог Складу: встановлені програми з іконками, розміром і останнім запуском та картка програми](docs/screenshots/uk-catalogue.png)
 

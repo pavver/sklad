@@ -14,7 +14,9 @@
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-E95420?logo=ubuntu&logoColor=white)
 ![egui](https://img.shields.io/badge/UI-egui-5a67d8)
 
-[Website](https://pavver.github.io/sklad/) · [Українська](README.uk.md) · [Site en français](https://pavver.github.io/sklad/fr.html) · [Сайт на русском](https://pavver.github.io/sklad/ru.html)
+Website: [English](https://pavver.github.io/sklad/) · [Українська](https://pavver.github.io/sklad/uk.html) · [Français](https://pavver.github.io/sklad/fr.html) · [Русский](https://pavver.github.io/sklad/ru.html)
+
+Readme: **English** · [Українська](README.uk.md) · [Français](README.fr.md) · [Русский](README.ru.md)
 
 ![The Sklad catalogue: installed programs with icons, sizes and last launch, and the card of a program](docs/screenshots/en-catalogue.png)
 
