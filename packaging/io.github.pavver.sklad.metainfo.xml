@@ -81,6 +81,14 @@
     <display_length compare="ge">1100</display_length>
   </requires>
   <releases>
+    <release version="0.3.2" date="2026-11-13">
+      <description>
+        <p>Docker containers, images and volumes and Python environments in the catalogue, the names of the packages
+        a metapackage leaves behind in the removal dialog, and the website and the readme in French and Russian.</p>
+        <p xml:lang="uk">Контейнери, образи й томи Docker та середовища Python у каталозі, назви пакетів, які лишає
+        метапакет, у вікні видалення, а також сайт і readme французькою та російською.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-11-13">
       <description>
         <p>The website loads again.</p>
