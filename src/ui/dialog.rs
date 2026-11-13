@@ -460,5 +460,33 @@ mod tests {
         assert!(note.starts_with("Will be removed through Docker.\n"), "{note}");
         assert_eq!(note.lines().count(), 3, "one line per part: {note}");
         assert!(note.ends_with(" data"), "{note}");
+
+        let others = [
+            Removal::Manager {
+                name: "pipx".to_owned(),
+                argv: Vec::new(),
+                access: Access::User,
+            },
+            Removal::Flatpak {
+                app_id: String::new(),
+                scope: crate::model::FlatpakScope::User,
+            },
+            Removal::Steam {
+                app_id: String::new(),
+            },
+            Removal::Cargo { name: String::new() },
+            Removal::Files {
+                paths: vec![PathBuf::from("/opt/x")],
+                access: Access::Root,
+            },
+        ];
+        let mut notes: Vec<String> = others
+            .iter()
+            .filter_map(|removal| other_note(removal, text))
+            .collect();
+        assert!(notes[0].contains("pipx"), "{}", notes[0]);
+        notes.sort_unstable();
+        notes.dedup();
+        assert_eq!(notes.len(), others.len(), "each says something of its own");
     }
 }
