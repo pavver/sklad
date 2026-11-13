@@ -1,13 +1,10 @@
-//! Bars and rows: `Header`, `Toolbar` (draft), `ListItem`, `Counter`, `Divider`, section headings.
+//! Bars and rows: `Header`, `Toolbar` (draft), `Counter`, `Divider`, section headings.
 
-use eframe::egui::{
-    self, Align, CursorIcon, Id, Layout, Rect, Response, Sense, Stroke, Ui, UiBuilder, WidgetInfo, pos2, vec2,
-};
+use eframe::egui::{self, Align, Layout, Rect, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
-use super::icon::{Icon, paint_icon};
-use super::state::{BORDER, hover_amount, paint_focus_ring, paint_ripple, press_amount};
+use super::state::BORDER;
 use super::text::{galley, paint_aligned, paint_galley, truncated};
-use super::tokens::{BOLD, Palette, Type, dim, du, mix, text, weighted};
+use super::tokens::{BOLD, Palette, Type, dim, du, text, weighted};
 
 /// Lays out `end` from the right edge of `rect` and returns the rectangle it took.
 fn from_the_end(ui: &mut Ui, rect: Rect, gap: f32, end: impl FnOnce(&mut Ui)) -> Rect {
@@ -128,20 +125,26 @@ pub enum Tone {
     Neutral,
 }
 
-/// `Counter`: a compact number. Above 99 it shows `99+`; at zero it shows only with `show_zero`.
-pub fn counter_text(count: usize) -> String {
-    if count > 99 {
-        "99+".to_owned()
+/// `Counter`: a compact number. Above `max` it shows `max+`; at zero it shows only with
+/// `show_zero`.
+pub fn counter_text(count: usize, max: usize) -> String {
+    if count > max {
+        format!("{max}+")
     } else {
         count.to_string()
     }
 }
 
 /// The size a counter takes.
-pub fn counter_size(ui: &Ui, count: usize) -> egui::Vec2 {
+pub fn counter_size(ui: &Ui, count: usize, max: usize) -> egui::Vec2 {
     let label = galley(
         ui,
-        weighted(counter_text(count), Type::Caption, BOLD, egui::Color32::WHITE),
+        weighted(
+            counter_text(count, max),
+            Type::Caption,
+            BOLD,
+            egui::Color32::WHITE,
+        ),
     );
     let height = du(4.5);
     vec2(
@@ -150,7 +153,7 @@ pub fn counter_size(ui: &Ui, count: usize) -> egui::Vec2 {
     )
 }
 
-pub fn paint_counter(ui: &Ui, rect: Rect, count: usize, tone: Tone, palette: &Palette) {
+pub fn paint_counter(ui: &Ui, rect: Rect, count: usize, max: usize, tone: Tone, palette: &Palette) {
     match tone {
         Tone::Neutral => {
             ui.painter().rect_filled(rect, 0.0, palette.surface_alt);
@@ -162,81 +165,14 @@ pub fn paint_counter(ui: &Ui, rect: Rect, count: usize, tone: Tone, palette: &Pa
             );
             let label = galley(
                 ui,
-                weighted(counter_text(count), Type::Caption, BOLD, palette.text_secondary),
+                weighted(
+                    counter_text(count, max),
+                    Type::Caption,
+                    BOLD,
+                    palette.text_secondary,
+                ),
             );
             paint_galley(ui, rect, label, palette.text_secondary);
         }
-    }
-}
-
-/// `ListItem` with a leading icon, a title and a trailing counter: a row of the side bar.
-pub struct ListItem<'a> {
-    pub id: Id,
-    pub title: &'a str,
-    pub leading: Option<Icon>,
-    pub count: Option<usize>,
-    pub selected: bool,
-}
-
-impl ListItem<'_> {
-    pub fn show(&self, ui: &mut Ui, palette: &Palette) -> Response {
-        let height = if self.leading.is_some() {
-            du(dim::ROW_AVATAR)
-        } else {
-            du(dim::ROW_STANDARD)
-        };
-        let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
-        let response = ui.interact(rect, self.id, Sense::click());
-        let selected = self.selected;
-        let label = match self.count {
-            Some(count) => format!("{} {count}", self.title),
-            None => self.title.to_owned(),
-        };
-        response.widget_info(|| WidgetInfo::selected(egui::Role::Button, true, selected, label.clone()));
-
-        let fill = if self.selected {
-            palette.selection
-        } else {
-            let hover = hover_amount(ui, &response);
-            let press = press_amount(ui, &response);
-            mix(
-                mix(palette.background, palette.hover, hover),
-                palette.pressed,
-                press,
-            )
-        };
-        ui.painter().rect_filled(rect, 0.0, fill);
-        paint_ripple(ui, &response, rect, true, palette);
-
-        let pad = du(dim::PAD_CARD);
-        let mut left = rect.left() + pad;
-        if let Some(icon) = self.leading {
-            let size = du(dim::ICON_LARGE);
-            paint_icon(
-                ui,
-                icon,
-                pos2(left + size / 2.0, rect.center().y),
-                size,
-                palette.icon,
-            );
-            left += size + pad;
-        }
-        let mut right = rect.right() - pad;
-        if let Some(count) = self.count {
-            let size = counter_size(ui, count);
-            let badge = Rect::from_min_size(pos2(right - size.x, rect.center().y - size.y / 2.0), size);
-            paint_counter(ui, badge, count, Tone::Neutral, palette);
-            right = badge.left() - du(dim::GUTTER);
-        }
-        let title = truncated(
-            ui,
-            text(self.title, Type::RowTitle, palette.text_primary),
-            right - left,
-        );
-        let text_rect = Rect::from_min_max(pos2(left, rect.top()), pos2(right, rect.bottom()));
-        paint_aligned(ui, text_rect, title, Align::Min, palette.text_primary);
-        line_below(ui, rect, palette.divider);
-        paint_focus_ring(ui, &response, rect.shrink(du(dim::GAP_MICRO)), palette);
-        response.on_hover_cursor(CursorIcon::PointingHand)
     }
 }

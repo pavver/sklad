@@ -10,8 +10,6 @@
 
 [icons]
 account_tree = { material = "account_tree" }
-all_inclusive = { material = "all_inclusive" }
-apps = { material = "apps" }
 box = { material = "box" }
 build = { material = "build" }
 code = { material = "code" }
@@ -26,11 +24,14 @@ font_download = { material = "font_download" }
 groups = { material = "groups" }
 inventory_2 = { material = "inventory_2" }
 layers = { material = "layers" }
+link = { material = "link" }
+link_off = { material = "link_off" }
 memory = { material = "memory" }
 movie = { material = "movie" }
 open_in_new = { material = "open_in_new" }
 package_2 = { material = "package_2" }
 palette = { material = "palette" }
+person = { material = "person" }
 play_arrow = { material = "play_arrow" }
 public = { material = "public" }
 school = { material = "school" }

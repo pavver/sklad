@@ -373,7 +373,7 @@ fn settle(harness: &mut Harness<'_, App>) {
 
 fn click(harness: &mut Harness<'_, App>, label: &str) {
     settle(harness);
-    let target = [Role::Button, Role::Row, Role::Switch]
+    let target = [Role::Button, Role::Row, Role::Switch, Role::CheckBox]
         .into_iter()
         .find_map(|role| {
             harness

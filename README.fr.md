@@ -38,7 +38,7 @@ C'est une façon graphique de trouver les paquets inutilisés, les dépendances 
 - **Au-delà des paquets :** les projets Docker Compose et les conteneurs, chacun sur une ligne avec les images et volumes que lui seul utilise et supprimé avec eux, tandis que les images et volumes que rien n'utilise ressortent comme des restes ; et les environnements Python de virtualenvwrapper, pyenv, conda et mamba.
 - **Des détails pour chaque entrée :** icône, description, licence, site web, développeur, taille, date d'installation.
 - **Dernier lancement** d'après le journal de Plasma et Steam, pour faire ressortir ce que vous n'utilisez plus.
-- **Filtres :** par section, par source, paquets installés par vous, dépendances, dépendances inutiles (orphelines), et recherche.
+- **Filtres** en tuiles dans la barre latérale, chacune avec le nombre d'entrées qu'elle afficherait : sections, sources et origine (installés par vous, dépendances utiles, dépendances inutiles ou orphelines). Les filtres actifs apparaissent en puces au-dessus de la liste, à côté de la recherche.
 - **Suppression hors d'un métapaquet :** le programme part, le reste du métapaquet reste.
 - **Rien de caché :** la commande exacte est à l'écran et peut être copiée au lieu d'être exécutée.
 - **Lancement** d'un programme depuis sa fiche, et sélection et copie de tout texte de la fenêtre.

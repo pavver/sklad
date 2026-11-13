@@ -5,6 +5,7 @@
 //! `DataTable`, `PropertyList` and `Toolbar`.
 
 pub mod button;
+pub mod checkbox_group;
 pub mod code;
 pub mod combobox;
 pub mod content;

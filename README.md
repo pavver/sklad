@@ -38,7 +38,7 @@ It is a graphical way to find unused packages, orphan dependencies, forgotten de
 - **Beyond packages:** Docker Compose projects and containers, each one row with the images and volumes only it uses and removed together with them, while images and volumes nothing uses stand out as leftovers; and the Python environments of virtualenvwrapper, pyenv, conda and mamba.
 - **Details for each entry:** icon, description, license, website, developer, size, install date.
 - **Last launch** from the Plasma log and Steam, to surface what you stopped using.
-- **Filters:** by section, by source, packages you installed yourself, dependencies, unneeded dependencies (orphans), and search.
+- **Filters** as tiles in the side bar, each with the number it would show: sections, sources, and whether you installed a package yourself, something still needs it, or nothing does (orphans). The filters that are on sit as chips over the list, next to search.
 - **Removal out of a metapackage:** the program goes, the rest of the metapackage stays.
 - **Nothing hidden:** the exact command is on screen and can be copied instead of run.
 - **Launch** a program from its card, and select and copy any text in the window.

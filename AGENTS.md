@@ -21,6 +21,11 @@ The design system marks these components as Draft, and sklad uses them anyway:
 * `PropertyList` (in [src/ui/operator/content.rs](src/ui/operator/content.rs)): the facts on the card.
 * `Toolbar` (in [src/ui/operator/layout.rs](src/ui/operator/layout.rs)): the bar above the table; its overflow menu is not ported.
 
+Reviewed components that sklad uses with a departure the maintainer agreed to:
+
+* `CheckboxGroup` ([src/ui/operator/checkbox_group.rs](src/ui/operator/checkbox_group.rs)): the filters of the side bar.
+  It is used synchronously, and each tile carries a neutral `Counter` before its indicator box, which the specification does not have yet.
+
 Their specifications may still change, so expect to rework them when the design system marks them Reviewed.
 
 ## Language and Formatting

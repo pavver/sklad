@@ -158,16 +158,19 @@ pub struct Text {
     pub sort_installed: &'static str,
     pub ascending: &'static str,
     pub descending: &'static str,
-    pub origin_all: &'static str,
     pub origin_explicit: &'static str,
-    pub origin_dependency: &'static str,
+    pub origin_needed: &'static str,
     pub origin_orphans: &'static str,
 
-    pub all_programs: &'static str,
+    /// The groups of the side bar.
+    pub heading_programs: &'static str,
     pub other: &'static str,
-    pub everything: &'static str,
+    pub heading_origin: &'static str,
     pub source_heading: &'static str,
-    pub all_sources: &'static str,
+    /// Takes every filter off.
+    pub reset_filters: &'static str,
+    /// The remove button of a filter chip, with the filter's name.
+    pub remove_filter: fn(&str) -> String,
     pub section: fn(Section) -> &'static str,
     pub source: fn(SourceKind) -> &'static str,
 

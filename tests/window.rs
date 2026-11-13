@@ -305,9 +305,6 @@ fn a_library_programs_need_cannot_be_removed_until_that_is_chosen() {
     let backend = FakeBackend::new(Outcome::Done);
     let mut harness = window(Arc::clone(&backend));
     settle(&mut harness);
-    harness
-        .get(By::new().role(Role::Button).label_contains("Бібліотеки"))
-        .click();
     open_removal(&mut harness, "Бібліотека");
     shot(&mut harness, "04-blocked");
     assert!(
@@ -799,17 +796,9 @@ fn controls_of_one_bar_share_their_top_and_height() {
         .get(By::new().role(Role::Button).label_contains("Оновити"))
         .rect();
     let search = harness.get_by_role(Role::TextInput).rect();
-    let origin = harness.get_by_role_and_label(Role::Tab, "Непотрібні").rect();
     assert_eq!(refresh.height(), 32.0, "a toolbar command is 8 DU");
     assert_eq!(refresh.width(), refresh.height(), "an icon button is square");
-    for other in [search, origin] {
-        assert_eq!(other.center().y, refresh.center().y);
-    }
-    assert_eq!(
-        origin.height(),
-        refresh.height() - 4.0,
-        "a segment sits inside its 0.5 DU padding"
-    );
+    assert_eq!(search.center().y, refresh.center().y);
 }
 
 /// Runs frames until the frame output holds a command the test is after.
@@ -903,9 +892,8 @@ fn every_kind_of_button_reacts_to_the_pointer() -> Result<(), String> {
         (Role::Button, "Оновити"),
         (Role::Button, "Сайт"),
         (Role::Button, "Видалити"),
-        (Role::Button, "Мультимедіа"),
+        (Role::CheckBox, "Мультимедіа"),
         (Role::Row, "Сервіс"),
-        (Role::Tab, "Непотрібні"),
     ];
     let mut still = Vec::new();
     for (role, target) in targets {
@@ -1148,8 +1136,6 @@ fn a_compose_project_is_one_row_removed_with_what_only_it_uses() {
     });
     let mut harness = window_speaking(Arc::clone(&backend), Vec2::new(1360.0, 1200.0), scanner, Lang::Uk);
     settle(&mut harness);
-    harness.get_by_label_contains("Консольні").click();
-    settle(&mut harness);
     shot(&mut harness, "29-docker-list");
     assert!(has_row(&harness, "shop"));
     assert!(
@@ -1178,5 +1164,49 @@ fn a_compose_project_is_one_row_removed_with_what_only_it_uses() {
         commands[0].shown,
         "docker container rm becf455de171 && docker image rm sha256:0b0ea86881537b3f645aace7e8e3 \
          && docker volume rm shop_data"
+    );
+}
+
+#[test]
+fn filters_are_tiles_of_the_side_bar_and_chips_over_the_list() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    assert!(
+        has_row(&harness, "Бібліотека"),
+        "everything shows while no filter is on"
+    );
+    harness
+        .get(By::new().role(Role::CheckBox).label("Мультимедіа"))
+        .click();
+    settle(&mut harness);
+    shot(&mut harness, "31-filters");
+    assert!(has_row(&harness, "Програвач"));
+    assert!(!has_row(&harness, "Бібліотека"));
+    let chip = By::new().role(Role::Button).label("Прибрати Мультимедіа");
+    assert!(
+        harness.query(chip.clone()).is_some(),
+        "the filter shows as a chip"
+    );
+
+    harness
+        .get(By::new().role(Role::CheckBox).label("Бібліотеки"))
+        .click();
+    settle(&mut harness);
+    assert!(
+        has_row(&harness, "Програвач") && has_row(&harness, "Бібліотека"),
+        "a group adds up"
+    );
+
+    harness.get(chip).click();
+    settle(&mut harness);
+    assert!(!has_row(&harness, "Програвач"), "the chip takes its filter off");
+    harness
+        .get_by_role_and_label(Role::Button, "Скинути фільтри")
+        .click();
+    settle(&mut harness);
+    assert!(has_row(&harness, "Програвач") && has_row(&harness, "Бібліотека"));
+    assert!(
+        harness.query_by_label("Скинути фільтри").is_none(),
+        "no chips without filters"
     );
 }

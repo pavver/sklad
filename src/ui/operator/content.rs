@@ -170,6 +170,46 @@ pub fn chip(ui: &mut Ui, label: &str, color: ChipColor, clickable: bool, palette
     }
 }
 
+/// An input chip: a neutral chip with a remove button `6 DU` wide at its end, which turns
+/// `error` on hover. Returns whether the button was pressed.
+pub fn input_chip(ui: &mut Ui, id: Id, label: &str, remove_label: &str, palette: &Palette) -> bool {
+    let words = galley(ui, text(label, Type::BodySmall, palette.text_primary));
+    let height = du(dim::ROW_DENSE);
+    let size = vec2((words.size().x + du(dim::GUTTER) + height).ceil(), height);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let button = Rect::from_min_max(pos2(rect.right() - height, rect.top()), rect.max);
+    let response = ui.interact(button, id, Sense::click());
+    response.widget_info(|| WidgetInfo::labeled(egui::Role::Button, true, remove_label));
+    if ui.is_rect_visible(rect) {
+        ui.painter().rect_filled(rect, 0.0, palette.surface);
+        let hover = hover_amount(ui, &response);
+        let press = super::state::press_amount(ui, &response);
+        ui.painter().rect_filled(
+            button,
+            0.0,
+            mix(tint(palette.hover, hover), palette.pressed, press),
+        );
+        let words_rect = Rect::from_min_max(
+            pos2(rect.left() + du(dim::GUTTER), rect.top()),
+            pos2(button.left(), rect.bottom()),
+        );
+        super::text::paint_aligned(ui, words_rect, words, egui::Align::Min, palette.text_primary);
+        let ink = mix(palette.icon, palette.error, hover);
+        paint_icon(ui, icon::CLOSE, button.center(), du(3.5), ink);
+        let state = if response.is_pointer_button_down_on() {
+            ControlState::Pressed
+        } else {
+            ControlState::Idle
+        };
+        paint_border(ui, rect, Outline::of(state, palette), &Look::IDLE, palette);
+        paint_focus_ring(ui, &response, button, palette);
+    }
+    let response = response
+        .on_hover_cursor(CursorIcon::PointingHand)
+        .on_hover_text(remove_label);
+    response.clicked()
+}
+
 /// `ChipSet`: chips in wrapping rows, `1 DU` apart.
 pub fn chip_set<R>(ui: &mut Ui, chips: impl FnOnce(&mut Ui) -> R) -> R {
     ui.horizontal_wrapped(|ui| {

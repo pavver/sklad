@@ -22,17 +22,17 @@ use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
+use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize};
 use operator::combobox::{self, Combobox};
-use operator::content::{Pane, SplitPane, theme_toggle};
+use operator::content::{ChipColor, Pane, SplitPane, chip, chip_set, input_chip, theme_toggle};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
-use operator::layout::{ListItem, header, toolbar};
+use operator::layout::{header, toolbar};
 use operator::search_field::SearchField;
-use operator::segmented::{Segment, natural_width, segmented};
 use operator::state::{Activity, Look, Outcome, result_hold};
 use operator::tokens::{DARK, LIGHT, Palette, dim, du, install_fonts};
 use pictures::Pictures;
-use view::{OriginFilter, Scope, View};
+use view::{Facet, Origin, View};
 
 /// Produces a catalogue. Runs on a background thread.
 pub type Scanner = Arc<dyn Fn(Lang) -> Catalog + Send + Sync>;
@@ -80,19 +80,37 @@ fn unix_now() -> i64 {
         .map_or(0, |time| time.as_secs() as i64)
 }
 
-const SIDE_BAR: f32 = du(64.0);
+const SIDE_BAR: f32 = du(84.0);
 /// The narrowest the side bar gets, in DU: its labels still fit.
-const SIDE_BAR_MIN: f32 = 40.0;
+const SIDE_BAR_MIN: f32 = 64.0;
 /// The share of the list beside the card, at first and after a double click on the divider.
 const SPLIT: f32 = 0.55;
 
-fn origins(text: &Text) -> [(OriginFilter, &'static str); 4] {
-    [
-        (OriginFilter::All, text.origin_all),
-        (OriginFilter::Explicit, text.origin_explicit),
-        (OriginFilter::Dependency, text.origin_dependency),
-        (OriginFilter::Orphans, text.origin_orphans),
-    ]
+/// The largest number a tile of the side bar shows in full; a catalogue rarely holds more.
+const COUNT_MAX: usize = 99_999;
+
+fn origin_icon(origin: Origin) -> Icon {
+    match origin {
+        Origin::Explicit => icon::PERSON,
+        Origin::Needed => icon::LINK,
+        Origin::Orphan => icon::LINK_OFF,
+    }
+}
+
+/// The icon and the name of a filter, as its tile and its chip say it.
+fn facet_label(facet: Facet, text: &Text) -> (Icon, &'static str) {
+    match facet {
+        Facet::Section(section) => (section_icon(section), (text.section)(section)),
+        Facet::Origin(origin) => {
+            let name = match origin {
+                Origin::Explicit => text.origin_explicit,
+                Origin::Needed => text.origin_needed,
+                Origin::Orphan => text.origin_orphans,
+            };
+            (origin_icon(origin), name)
+        }
+        Facet::Source(source) => (source_icon(source), (text.source)(source)),
+    }
 }
 
 fn section_icon(section: Section) -> Icon {
@@ -330,110 +348,126 @@ impl App {
         }
     }
 
-    fn scope_row(&mut self, ui: &mut Ui, glyph: Icon, label: &str, scope: Scope, palette: &Palette) {
-        let items = self
-            .catalog
-            .as_ref()
-            .map_or(&[][..], |catalog| catalog.items.as_slice());
-        let row = ListItem {
-            id: Id::unique(("scope", label)),
-            title: label,
-            leading: Some(glyph),
-            count: Some(self.view.count(items, scope)),
-            selected: self.view.scope == scope,
-        };
-        if row.show(ui, palette).clicked() {
-            self.view.scope = scope;
-            self.refilter();
-        }
-    }
-
-    fn source_row(&mut self, ui: &mut Ui, kind: Option<SourceKind>, palette: &Palette) {
-        let items = self
-            .catalog
-            .as_ref()
-            .map_or(&[][..], |catalog| catalog.items.as_slice());
-        let probe = View {
-            source: kind,
-            ..self.view.clone()
-        };
-        let text = self.text();
-        let (glyph, label) = kind.map_or((icon::ALL_INCLUSIVE, text.all_sources), |kind| {
-            (source_icon(kind), (text.source)(kind))
-        });
-        let row = ListItem {
-            id: Id::unique(("source", label)),
-            title: label,
-            leading: Some(glyph),
-            count: Some(probe.count(items, self.view.scope)),
-            selected: self.view.source == kind,
-        };
-        if row.show(ui, palette).clicked() {
-            self.view.source = kind;
-            self.refilter();
-        }
-    }
-
     fn group(ui: &mut Ui, title: &str, palette: &Palette) {
         ui.add_space(du(dim::SECTION_GAP));
         ui.horizontal(|ui| {
-            ui.add_space(du(dim::PAD_CARD));
+            ui.add_space(du(dim::GUTTER));
             operator::layout::section_title(ui, title, palette);
         });
         ui.add_space(du(dim::PAD_TIGHT));
     }
 
+    /// One group of filters as a `CheckboxGroup`, each tile with the number choosing it would
+    /// show.
+    fn facets(&mut self, ui: &mut Ui, title: &str, facets: &[Facet], palette: &Palette) {
+        if facets.is_empty() {
+            return;
+        }
+        Self::group(ui, title, palette);
+        let text = self.text();
+        let items = self
+            .catalog
+            .as_ref()
+            .map_or(&[][..], |catalog| catalog.items.as_slice());
+        let tiles: Vec<GroupItem<'_>> = facets
+            .iter()
+            .map(|&facet| {
+                let (glyph, name) = facet_label(facet, text);
+                GroupItem {
+                    name,
+                    icon: Some(glyph),
+                    count: Some(self.view.count(items, facet)),
+                    selected: self.view.is_on(facet),
+                }
+            })
+            .collect();
+        let group = CheckboxGroup {
+            id: Id::unique(("facets", title)),
+            items: &tiles,
+            icon_size: IconSize::Large,
+            counter_max: COUNT_MAX,
+        };
+        if let Some(index) = group.show(ui, palette) {
+            self.view.toggle(facets[index]);
+            self.refilter();
+        }
+    }
+
     fn side_bar(&mut self, ui: &mut Ui, palette: &Palette) {
         let text = self.text();
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            self.scope_row(ui, icon::APPS, text.all_programs, Scope::Apps, palette);
-            for section in Section::APPS {
-                self.scope_row(
-                    ui,
-                    section_icon(section),
-                    (text.section)(section),
-                    Scope::One(section),
-                    palette,
-                );
-            }
-            Self::group(ui, text.other, palette);
-            for section in Section::OTHER {
-                self.scope_row(
-                    ui,
-                    section_icon(section),
-                    (text.section)(section),
-                    Scope::One(section),
-                    palette,
-                );
-            }
-            self.scope_row(ui, icon::INVENTORY_2, text.everything, Scope::Everything, palette);
-            Self::group(ui, text.source_heading, palette);
-            self.source_row(ui, None, palette);
-            let offered = self.catalog.as_ref().map_or_else(Vec::new, |catalog| {
-                view::offered_sources(&catalog.items, catalog.system, self.view.source)
+        let (programs, other, sources): (Vec<Facet>, Vec<Facet>, Vec<Facet>) =
+            self.catalog.as_ref().map_or_else(Default::default, |catalog| {
+                let items = &catalog.items;
+                let sections = |list: &[Section]| -> Vec<Facet> {
+                    view::offered_sections(items, list, &self.view)
+                        .into_iter()
+                        .map(Facet::Section)
+                        .collect()
+                };
+                let sources: Vec<Facet> = view::offered_sources(items, catalog.system, &self.view)
+                    .into_iter()
+                    .map(Facet::Source)
+                    .collect();
+                (sections(&Section::APPS), sections(&Section::OTHER), sources)
             });
-            for kind in offered {
-                self.source_row(ui, Some(kind), palette);
-            }
+        let origins = Origin::ALL.map(Facet::Origin);
+        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            Frame::new()
+                .inner_margin(egui::Margin::symmetric(du(dim::GUTTER) as i8, 0))
+                .show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
+                    self.facets(ui, text.heading_programs, &programs, palette);
+                    self.facets(ui, text.other, &other, palette);
+                    self.facets(ui, text.heading_origin, &origins, palette);
+                    self.facets(ui, text.source_heading, &sources, palette);
+                    ui.add_space(du(dim::SECTION_GAP));
+                });
         });
     }
 
-    fn scope_label(&self) -> &'static str {
+    /// The chosen filters as chips, each with its remove button, and a chip that takes them all
+    /// off. Nothing when no filter is on.
+    fn filter_chips(&mut self, ui: &mut Ui, palette: &Palette) {
+        if self.view.filters().is_empty() {
+            return;
+        }
         let text = self.text();
-        match self.view.scope {
-            Scope::Apps => text.all_programs,
-            Scope::Everything => text.everything,
-            Scope::One(section) => (text.section)(section),
+        let mut removed = None;
+        let mut reset = false;
+        Frame::new()
+            .fill(palette.surface)
+            .inner_margin(egui::Margin::same(du(dim::PAD_CARD) as i8 / 2))
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                chip_set(ui, |ui| {
+                    for &facet in self.view.filters() {
+                        let (_, name) = facet_label(facet, text);
+                        let id = Id::unique(("filter chip", name));
+                        if input_chip(ui, id, name, &(text.remove_filter)(name), palette) {
+                            removed = Some(facet);
+                        }
+                    }
+                    reset = chip(ui, text.reset_filters, ChipColor::Neutral, true, palette).clicked();
+                });
+            });
+        let rect = ui.min_rect();
+        let line = egui::Stroke::new(operator::state::BORDER, palette.border);
+        ui.painter().hline(rect.x_range(), ui.cursor().top(), line);
+        if let Some(facet) = removed {
+            self.view.toggle(facet);
+            self.refilter();
+        }
+        if reset {
+            self.view.clear();
+            self.refilter();
         }
     }
 
     fn tool_bar(&mut self, ui: &mut Ui, now: f64, palette: &Palette) {
         let text = self.text();
-        let title = format!("{} · {}", self.scope_label(), self.visible.len());
+        let title = (text.records)(self.visible.len());
         let look = self.refresh.look(now, result_hold());
         let mut refresh = false;
-        let mut origin = None;
         let mut query = None;
         toolbar(
             ui,
@@ -444,45 +478,24 @@ impl App {
                     .look(look)
                     .show(ui, palette)
                     .clicked();
-                let origins = origins(text);
-                let items = origins.map(|(_, label)| Segment::new(label));
-                let current = origins
-                    .iter()
-                    .position(|(origin, _)| *origin == self.view.origin)
-                    .unwrap_or(0);
-                let filter_width = natural_width(ui, &items);
-                let gap = ui.spacing().item_spacing.x;
                 let field = SearchField {
                     id: Id::unique("search"),
                     placeholder: text.search,
                     clear_label: text.clear_search,
                     height: dim::ROW_COMPACT,
-                    width: (ui.available_width() - filter_width - gap).clamp(0.0, du(80.0)),
+                    width: ui.available_width().clamp(0.0, du(80.0)),
                 };
                 query = field.show(ui, &mut self.view.query, palette);
-                origin = segmented(
-                    ui,
-                    Id::unique("origin"),
-                    &items,
-                    current,
-                    filter_width,
-                    dim::ROW_COMPACT,
-                    palette,
-                )
-                .map(|choice| origins[choice].0);
             },
             |_| {},
         );
         if refresh && self.scanning.is_none() {
             self.rescan(ui.ctx());
         }
-        if let Some(origin) = origin {
-            self.view.origin = origin;
-            self.refilter();
-        }
         if query.is_some() {
             self.refilter();
         }
+        self.filter_chips(ui, palette);
     }
 
     fn list(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
