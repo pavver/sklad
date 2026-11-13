@@ -80,42 +80,7 @@ fn shell_tokens(source: &str) -> Vec<(Option<Kind>, &str)> {
     let mut out: Vec<(Option<Kind>, usize, usize)> = Vec::new();
     let mut pos = 0;
     while let Some(c) = source[pos..].chars().next() {
-        let rest = &source[pos..];
-        let previous = source[..pos].chars().next_back();
-        let at_boundary = previous.is_none_or(char::is_whitespace);
-        let (kind, len) = if c.is_whitespace() {
-            (None, c.len_utf8())
-        } else if c == '#' && at_boundary {
-            (Some(Kind::Comment), rest.find('\n').unwrap_or(rest.len()))
-        } else if c == '"' || c == '\'' {
-            (Some(Kind::String), quoted_len(rest, c, c == '"'))
-        } else if c.is_ascii_digit() && !previous.is_some_and(is_word) {
-            (
-                Some(Kind::Number),
-                rest.find(|d: char| !d.is_ascii_alphanumeric())
-                    .unwrap_or(rest.len()),
-            )
-        } else if is_word_start(c) {
-            let len = word_len(rest);
-            let word = &rest[..len];
-            let kind = if KEYWORDS.contains(&word) {
-                Some(Kind::Keyword)
-            } else if CONSTANTS.contains(&word) {
-                Some(Kind::Constant)
-            } else if BUILTINS.contains(&word) || rest[len..].trim_start_matches([' ', '\t']).starts_with('(')
-            {
-                Some(Kind::Function)
-            } else {
-                None
-            };
-            (kind, len)
-        } else if c == '$' {
-            (Some(Kind::Property), variable_len(rest))
-        } else if PUNCTUATION.contains(c) {
-            (Some(Kind::Punctuation), 1)
-        } else {
-            (None, c.len_utf8())
-        };
+        let (kind, len) = token(source, pos, c);
         let len = len.max(c.len_utf8());
         match out.last_mut() {
             Some((last, _, end)) if *last == kind && *end == pos => *end = pos + len,
@@ -126,6 +91,44 @@ fn shell_tokens(source: &str) -> Vec<(Option<Kind>, &str)> {
     out.into_iter()
         .map(|(kind, start, end)| (kind, &source[start..end]))
         .collect()
+}
+
+/// The kind and length of the token that starts at `pos` with `c`.
+fn token(source: &str, pos: usize, c: char) -> (Option<Kind>, usize) {
+    let rest = &source[pos..];
+    let previous = source[..pos].chars().next_back();
+    if c == '#' && previous.is_none_or(char::is_whitespace) {
+        (Some(Kind::Comment), rest.find('\n').unwrap_or(rest.len()))
+    } else if c == '"' || c == '\'' {
+        (Some(Kind::String), quoted_len(rest, c, c == '"'))
+    } else if c.is_ascii_digit() && !previous.is_some_and(is_word) {
+        let len = rest
+            .find(|d: char| !d.is_ascii_alphanumeric())
+            .unwrap_or(rest.len());
+        (Some(Kind::Number), len)
+    } else if is_word_start(c) {
+        let len = word_len(rest);
+        (word_kind(&rest[..len], &rest[len..]), len)
+    } else if c == '$' {
+        (Some(Kind::Property), variable_len(rest))
+    } else if PUNCTUATION.contains(c) {
+        (Some(Kind::Punctuation), 1)
+    } else {
+        (None, c.len_utf8())
+    }
+}
+
+/// A word is a keyword, a constant, a function when it is a builtin or a call, or plain.
+fn word_kind(word: &str, after: &str) -> Option<Kind> {
+    if KEYWORDS.contains(&word) {
+        Some(Kind::Keyword)
+    } else if CONSTANTS.contains(&word) {
+        Some(Kind::Constant)
+    } else if BUILTINS.contains(&word) || after.trim_start_matches([' ', '\t']).starts_with('(') {
+        Some(Kind::Function)
+    } else {
+        None
+    }
 }
 
 fn kind_colour(kind: Option<Kind>, palette: &Palette) -> Color32 {
@@ -548,6 +551,52 @@ mod tests {
         assert_eq!(kind_of(code, "\"$1\""), Some(Kind::String));
         assert_eq!(kind_of(code, "${HOME}"), Some(Kind::Property));
         assert_eq!(kind_of(code, "$#"), Some(Kind::Property));
+    }
+
+    #[test]
+    fn numbers_constants_calls_and_punctuation_are_told_apart() {
+        let code = "x1=42; ok=true; greet () { printf 'a\\b' 7z; } # note\nv2 # not a comment";
+        assert_eq!(kind_of(code, "42"), Some(Kind::Number));
+        assert_eq!(kind_of(code, "7z"), Some(Kind::Number));
+        assert_eq!(kind_of(code, "x1"), None, "a digit inside a word is no number");
+        assert_eq!(kind_of(code, "true"), Some(Kind::Constant));
+        assert_eq!(
+            kind_of(code, "greet"),
+            Some(Kind::Function),
+            "a word before ( is a call"
+        );
+        assert_eq!(kind_of(code, "printf"), Some(Kind::Function));
+        assert_eq!(
+            kind_of(code, "'a\\b'"),
+            Some(Kind::String),
+            "single quotes take no escapes"
+        );
+        assert_eq!(kind_of(code, "# note"), Some(Kind::Comment));
+        assert_eq!(kind_of(code, "{"), Some(Kind::Punctuation));
+        let tokens: String = shell_tokens(code).iter().map(|(_, text)| *text).collect();
+        assert_eq!(tokens, code, "the tokens cover the code exactly");
+    }
+
+    #[test]
+    fn every_kind_has_a_colour_of_its_own() {
+        let kinds = [
+            None,
+            Some(Kind::Keyword),
+            Some(Kind::String),
+            Some(Kind::Number),
+            Some(Kind::Comment),
+            Some(Kind::Function),
+            Some(Kind::Constant),
+            Some(Kind::Property),
+            Some(Kind::Punctuation),
+        ];
+        let mut colours: Vec<[u8; 4]> = kinds
+            .iter()
+            .map(|&kind| kind_colour(kind, &DARK).to_array())
+            .collect();
+        colours.sort_unstable();
+        colours.dedup();
+        assert_eq!(colours.len(), kinds.len());
     }
 
     #[test]
