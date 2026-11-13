@@ -143,41 +143,64 @@ impl Gathered {
     }
 }
 
+/// Where the reading is: the elements around it, the field being collected and its text.
+struct Reading<'a> {
+    language: &'a str,
+    path: Vec<Vec<u8>>,
+    open: Option<Open>,
+    buffer: String,
+    gathered: Gathered,
+}
+
+impl Reading<'_> {
+    fn start(&mut self, tag: &BytesStart<'_>) {
+        let name = tag.name().as_ref().to_vec();
+        if self.open.is_none()
+            && let Some(field) = Field::of(tag, &name, &self.path)
+        {
+            let lang = language_of(tag, self.language);
+            self.open = Some(Open {
+                field,
+                lang,
+                tag: name.clone(),
+            });
+            self.buffer.clear();
+        }
+        self.path.push(name);
+    }
+
+    fn text(&mut self, text: &str) {
+        self.buffer.push_str(text);
+    }
+
+    fn end(&mut self, name: &[u8]) {
+        self.path.pop();
+        if let Some(closed) = self.open.take_if(|open| open.tag == name) {
+            let text = self.buffer.split_whitespace().collect::<Vec<_>>().join(" ");
+            self.gathered.keep(closed, text);
+        }
+    }
+}
+
 pub fn parse(xml: &str, language: &str) -> Option<Metainfo> {
     let mut reader = Reader::from_str(xml);
-    let mut gathered = Gathered::default();
-    let mut path: Vec<Vec<u8>> = Vec::new();
-    let mut open: Option<Open> = None;
-    let mut buffer = String::new();
+    let mut reading = Reading {
+        language,
+        path: Vec::new(),
+        open: None,
+        buffer: String::new(),
+        gathered: Gathered::default(),
+    };
     loop {
         match reader.read_event().ok()? {
-            Event::Start(tag) => {
-                let name = tag.name().as_ref().to_vec();
-                if open.is_none()
-                    && let Some(field) = Field::of(&tag, &name, &path)
-                {
-                    let lang = language_of(&tag, language);
-                    open = Some(Open {
-                        field,
-                        lang,
-                        tag: name.clone(),
-                    });
-                    buffer.clear();
-                }
-                path.push(name);
-            }
-            Event::Text(text) if open.is_some() => buffer.push_str(&text.decode().ok()?),
-            Event::GeneralRef(entity) if open.is_some() => {
+            Event::Start(tag) => reading.start(&tag),
+            Event::Text(text) if reading.open.is_some() => reading.text(&text.decode().ok()?),
+            Event::GeneralRef(entity) if reading.open.is_some() => {
                 let name = entity.decode().ok()?;
-                buffer.push_str(quick_xml::escape::resolve_xml_entity(&name).unwrap_or_default());
+                reading.text(quick_xml::escape::resolve_xml_entity(&name).unwrap_or_default());
             }
-            Event::End(tag) => {
-                path.pop();
-                if let Some(closed) = open.take_if(|open| open.tag == tag.name().as_ref()) {
-                    gathered.keep(closed, buffer.split_whitespace().collect::<Vec<_>>().join(" "));
-                }
-            }
-            Event::Eof => return Some(gathered.finish()),
+            Event::End(tag) => reading.end(tag.name().as_ref()),
+            Event::Eof => return Some(reading.gathered.finish()),
             _ => {}
         }
     }
