@@ -78,7 +78,13 @@
     <display_length compare="ge">1100</display_length>
   </requires>
   <releases>
-    <release version="0.3.0" date="2026-11-14">
+    <release version="0.3.1" date="2026-11-13">
+      <description>
+        <p>The website loads again.</p>
+        <p xml:lang="uk">Сайт знову відкривається.</p>
+      </description>
+    </release>
+    <release version="0.3.0" date="2026-11-13">
       <description>
         <p>Debian and Ubuntu support with removal through apt and an apt repository, French and Russian, a language
         choice that searches by the native and the English name, and a website built from Operator UI components.</p>
