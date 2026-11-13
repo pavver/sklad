@@ -624,34 +624,44 @@ impl App {
             now,
             text: self.text(),
         };
-        match detail::show(ui, &card, &mut self.pictures, palette) {
-            Some(detail::Action::Launch) => self.start_launch(&item, time),
-            Some(detail::Action::Remove) => {
-                if let Some(catalog) = &self.catalog {
-                    self.dialog = Some(Dialog::open(
-                        item,
-                        Arc::clone(catalog),
-                        Arc::clone(&self.backend),
-                        self.choice.lang.text(),
-                    ));
-                }
-            }
-            Some(detail::Action::Close) => self.selection = None,
-            Some(detail::Action::Open(url)) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
-            Some(detail::Action::Follow(name)) => {
-                // A neighbour comes from the same source: a package names packages, a Docker
-                // row names Docker rows.
-                let id = self.catalog.as_ref().and_then(|catalog| {
-                    catalog
-                        .items
-                        .iter()
-                        .find(|other| other.source == item.source && other.package == name)
-                        .map(|other| other.id.clone())
-                });
-                self.select(&id.unwrap_or_else(|| format!("pacman:{name}")));
-            }
-            None => {}
+        if let Some(action) = detail::show(ui, &card, &mut self.pictures, palette) {
+            self.act(ui.ctx(), item, action, time);
         }
+    }
+
+    /// What a press on the card asks for.
+    fn act(&mut self, ctx: &egui::Context, item: Item, action: detail::Action, time: f64) {
+        match action {
+            detail::Action::Launch => self.start_launch(&item, time),
+            detail::Action::Remove => self.open_dialog(item),
+            detail::Action::Close => self.selection = None,
+            detail::Action::Open(url) => ctx.open_url(egui::OpenUrl::new_tab(url)),
+            detail::Action::Follow(name) => self.follow(&item, &name),
+        }
+    }
+
+    fn open_dialog(&mut self, item: Item) {
+        if let Some(catalog) = &self.catalog {
+            self.dialog = Some(Dialog::open(
+                item,
+                Arc::clone(catalog),
+                Arc::clone(&self.backend),
+                self.choice.lang.text(),
+            ));
+        }
+    }
+
+    /// Selects a neighbour, which comes from the same source: a package names packages, a
+    /// Docker row names Docker rows.
+    fn follow(&mut self, item: &Item, name: &str) {
+        let id = self.catalog.as_ref().and_then(|catalog| {
+            catalog
+                .items
+                .iter()
+                .find(|other| other.source == item.source && other.package == name)
+                .map(|other| other.id.clone())
+        });
+        self.select(&id.unwrap_or_else(|| format!("pacman:{name}")));
     }
 
     /// The tool bar over the list, and the card beside it when something is selected.
