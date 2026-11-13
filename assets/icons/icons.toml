@@ -9,11 +9,14 @@
 #   opsz     = optical size: 20 (default, for icons up to 5 DU), 24, 40 or 48
 
 [icons]
+account_tree = { material = "account_tree" }
 all_inclusive = { material = "all_inclusive" }
 apps = { material = "apps" }
+box = { material = "box" }
 build = { material = "build" }
 code = { material = "code" }
 construction = { material = "construction" }
+database = { material = "database" }
 deployed_code = { material = "deployed_code" }
 description = { material = "description" }
 directions_boat = { material = "directions_boat" }
@@ -33,4 +36,5 @@ public = { material = "public" }
 school = { material = "school" }
 science = { material = "science" }
 sports_esports = { material = "sports_esports" }
+stacks = { material = "stacks" }
 terminal = { material = "terminal" }

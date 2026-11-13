@@ -118,7 +118,7 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Pal
         |row| item(row).title.clone(),
         |ui, row, rect| {
             let item = item(row);
-            let picture = pictures.get(item.icon.as_deref());
+            let picture = super::picture(item, pictures);
             avatar(ui, rect, &item.id, &item.title, picture, palette);
         },
         |ui| {

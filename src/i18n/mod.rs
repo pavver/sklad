@@ -277,6 +277,13 @@ pub struct Text {
     pub docker_image: &'static str,
     pub docker_volume: &'static str,
     pub docker_data_lost: &'static str,
+    /// A Compose project, by the number of its containers.
+    pub docker_project: fn(usize) -> String,
+    /// The heading over what a Docker row removes.
+    pub heading_docker_parts: &'static str,
+    pub docker_part_container: &'static str,
+    pub docker_part_image: &'static str,
+    pub docker_part_volume: &'static str,
     pub rust_toolchain: &'static str,
     pub default_toolchain: &'static str,
 }

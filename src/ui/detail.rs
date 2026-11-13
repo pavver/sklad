@@ -3,7 +3,7 @@
 use eframe::egui::{self, Frame, Id, Margin, ScrollArea, Sense, Ui, vec2};
 
 use super::format;
-use super::operator::button::ActionButton;
+use super::operator::button::{ActionButton, IconButton};
 use super::operator::code::CodeBlock;
 use super::operator::content::{ChipColor, Property, avatar, chip, chip_set, property_list};
 use super::operator::icon;
@@ -12,7 +12,7 @@ use super::operator::state::Look;
 use super::operator::tokens::{Palette, Type, dim, du, text};
 use super::pictures::Pictures;
 use crate::i18n::Text;
-use crate::model::{Access, Item, Reason, Removal, Usage};
+use crate::model::{Access, DockerObject, Item, Reason, Removal, Usage};
 
 pub enum Action {
     Launch,
@@ -20,6 +20,8 @@ pub enum Action {
     Open(String),
     /// Go to another package by name.
     Follow(String),
+    /// Close the card, leaving nothing selected.
+    Close,
 }
 
 /// How many neighbours are listed before the list is cut.
@@ -75,9 +77,12 @@ pub struct Card<'a> {
     pub text: &'static Text,
 }
 
-fn title_block(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Palette) {
+/// The avatar, the title and the badges, with the button that closes the card. True when it was
+/// pressed.
+fn title_block(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Palette) -> bool {
     let item = card.item;
     let text = card.text;
+    let mut closed = false;
     ui.horizontal_top(|ui| {
         let side = du(16.0);
         let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
@@ -86,11 +91,13 @@ fn title_block(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &
             rect,
             &item.id,
             &item.title,
-            pictures.get(item.icon.as_deref()),
+            super::picture(item, pictures),
             palette,
         );
         ui.add_space(du(dim::PAD_CARD) - ui.spacing().item_spacing.x);
+        let close = du(dim::ROW_COMPACT) + ui.spacing().item_spacing.x;
         ui.vertical(|ui| {
+            ui.set_width(ui.available_width() - close);
             ui.spacing_mut().item_spacing.y = du(dim::PAD_SMALL);
             wrapped(ui, item.title.clone(), Type::ScreenTitle, palette.text_primary);
             chip_set(ui, |ui| {
@@ -116,7 +123,11 @@ fn title_block(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &
                 }
             });
         });
+        closed = IconButton::new(icon::CLOSE, text.close)
+            .show(ui, palette)
+            .clicked();
     });
+    closed
 }
 
 fn facts(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
@@ -169,6 +180,39 @@ fn facts(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
     property_list(ui, Id::unique(("facts", &item.id)), &list, palette);
 }
 
+/// The word for one kind of Docker object.
+pub fn docker_part(object: DockerObject, text: &Text) -> &'static str {
+    match object {
+        DockerObject::Container => text.docker_part_container,
+        DockerObject::Image => text.docker_part_image,
+        DockerObject::Volume => text.docker_part_volume,
+    }
+}
+
+/// What a Docker row removes, when it is more than the row itself.
+fn docker_parts(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
+    let Removal::Docker { parts } = &card.item.removal else {
+        return;
+    };
+    if parts.len() < 2 {
+        return;
+    }
+    let text = card.text;
+    section_title(ui, text.heading_docker_parts, palette);
+    let list: Vec<Property> = parts
+        .iter()
+        .map(|part| Property {
+            label: docker_part(part.object, text),
+            value: match part.size {
+                Some(size) => format!("{} · {}", part.name, format::size(size, text)),
+                None => part.name.clone(),
+            },
+            copy: None,
+        })
+        .collect();
+    property_list(ui, Id::unique(("parts", &card.item.id)), &list, palette);
+}
+
 /// The command as a code block, or the reason there is none.
 fn command_block(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
     section_title(ui, card.text.heading_command, palette);
@@ -205,7 +249,9 @@ pub fn show(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Pal
                 .inner_margin(Margin::same(du(dim::MARGIN_SCREEN) as i8))
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(du(dim::GUTTER), du(dim::PAD_CARD));
-                    title_block(ui, card, pictures, palette);
+                    if title_block(ui, card, pictures, palette) {
+                        action = Some(Action::Close);
+                    }
                     if !item.summary.is_empty() {
                         wrapped(ui, item.summary.clone(), Type::Body, palette.text_primary);
                     }
@@ -241,6 +287,7 @@ pub fn show(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Pal
                         section_title(ui, text.heading_description, palette);
                         wrapped(ui, item.description.clone(), Type::Body, palette.text_secondary);
                     }
+                    docker_parts(ui, card, palette);
                     if item.launchers.len() > 1 {
                         section_title(ui, text.heading_launchers, palette);
                         wrapped(ui, item.launchers.join(", "), Type::Body, palette.text_secondary);

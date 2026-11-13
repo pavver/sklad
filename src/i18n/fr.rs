@@ -199,6 +199,14 @@ pub static TEXT: Text = Text {
     docker_image: "Une image Docker",
     docker_volume: "Un volume Docker : des données gardées pour les conteneurs",
     docker_data_lost: "Son contenu ne pourra pas être récupéré : Docker le supprime définitivement.",
+    docker_project: |count| {
+        let containers = if count <= 1 { "conteneur" } else { "conteneurs" };
+        format!("Un projet Docker Compose : {count} {containers}")
+    },
+    heading_docker_parts: "Ce qu'il contient",
+    docker_part_container: "Conteneur",
+    docker_part_image: "Image",
+    docker_part_volume: "Volume",
     rust_toolchain: "Une chaîne d'outils Rust : le compilateur, cargo et la bibliothèque standard",
     default_toolchain: "C'est la chaîne d'outils par défaut : cargo et rustc cessent de fonctionner sans elle.",
 };

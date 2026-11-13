@@ -21,6 +21,9 @@ pub enum Picture<'a> {
     Ready(&'a TextureHandle),
     Loading,
     Missing,
+    /// An icon in place of the initial, for things that have no image but a kind: an agreed
+    /// departure from the specification, which knows only the image and the initial.
+    Glyph(icon::Icon),
 }
 
 /// The colour of an avatar without an image, from its id: Java `hashCode`, a hue out of seven,
@@ -52,6 +55,10 @@ fn hsv(hue: f32, saturation: f32, value: f32) -> Color32 {
     Color32::from_rgb(channel(r), channel(g), channel(b))
 }
 
+/// The share of the avatar a glyph fills: an icon carries less ink than a letter, so it is drawn
+/// larger than the `45%` initial.
+const GLYPH_SHARE: f32 = 0.6;
+
 /// `Avatar` of the `ThreadedGroup` kind: a square with the image, or the initial on its colour.
 pub fn avatar(ui: &Ui, rect: Rect, id: &str, name: &str, picture: Picture<'_>, palette: &Palette) {
     let painter = ui.painter();
@@ -64,6 +71,11 @@ pub fn avatar(ui: &Ui, rect: Rect, id: &str, name: &str, picture: Picture<'_>, p
     } else {
         let colour = avatar_colour(id, palette.dark);
         painter.rect_filled(rect, 0.0, tint(colour, 0.15));
+        if let Picture::Glyph(glyph) = picture {
+            paint_icon(ui, glyph, rect.center(), rect.height() * GLYPH_SHARE, colour);
+            painter.rect_stroke(rect, 0.0, Stroke::new(BORDER, palette.border), StrokeKind::Inside);
+            return;
+        }
         let initial: String = name
             .chars()
             .next()

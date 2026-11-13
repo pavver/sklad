@@ -92,6 +92,7 @@ fn blank(id: String, package: String, source: Source, removal: Removal) -> Item 
         icon: None,
         launchers: Vec::new(),
         launch: None,
+        docker: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),

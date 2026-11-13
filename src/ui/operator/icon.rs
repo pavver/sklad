@@ -38,11 +38,14 @@ pub const SETTINGS: Icon = Icon::System(&ds::SETTINGS);
 pub const WARNING: Icon = Icon::System(&ds::WARNING);
 
 imported!(
+    ACCOUNT_TREE = "account_tree",
     ALL_INCLUSIVE = "all_inclusive",
     APPS = "apps",
+    BOX = "box",
     BUILD = "build",
     CODE = "code",
     CONSTRUCTION = "construction",
+    DATABASE = "database",
     DEPLOYED_CODE = "deployed_code",
     DESCRIPTION = "description",
     DIRECTIONS_BOAT = "directions_boat",
@@ -62,6 +65,7 @@ imported!(
     SCHOOL = "school",
     SCIENCE = "science",
     SPORTS_ESPORTS = "sports_esports",
+    STACKS = "stacks",
     TERMINAL = "terminal",
 );
 
@@ -162,7 +166,11 @@ mod tests {
             SEARCH,
             SETTINGS,
             WARNING,
+            ACCOUNT_TREE,
             ALL_INCLUSIVE,
+            BOX,
+            DATABASE,
+            STACKS,
             APPS,
             BUILD,
             CODE,

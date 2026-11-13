@@ -91,6 +91,7 @@ fn item(package: &str, title: &str, section: Section, usage: Usage) -> Item {
         icon: None,
         launchers: Vec::new(),
         launch: None,
+        docker: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
@@ -1096,4 +1097,86 @@ fn a_failed_launch_says_so() {
         }
     }
     assert!(said, "a toast says the launch failed");
+}
+
+#[test]
+fn the_selected_row_pressed_again_or_the_close_button_closes_the_card() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    assert!(harness.query_by_label("Ліцензія").is_some());
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    assert!(
+        harness.query_by_label("Ліцензія").is_none(),
+        "the same row closes the card"
+    );
+
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Button, "Закрити").click();
+    settle(&mut harness);
+    assert!(
+        harness.query_by_label("Ліцензія").is_none(),
+        "the button closes the card"
+    );
+    assert!(has_row(&harness, "Редактор"));
+}
+
+const DOCKER: &str = r#"{
+  "Images": [
+    {"ID": "sha256:0b0ea86881537b3f645aace7e8e3", "Repository": "postgres", "Tag": "16",
+     "Size": "430MB", "UniqueSize": "430MB", "CreatedAt": "2026-10-01 10:00:00 +0000 UTC"},
+    {"ID": "sha256:dea68412bf5c099f4eb8a6a2f63a", "Repository": "redis", "Tag": "7",
+     "Size": "140MB", "UniqueSize": "140MB", "CreatedAt": "2026-10-01 10:00:00 +0000 UTC"}
+  ],
+  "Containers": [
+    {"ID": "becf455de171", "Names": "shop-db-1", "Image": "postgres:16", "State": "exited",
+     "Size": "1kB", "CreatedAt": "2026-10-30 00:07:22 +0200 EET",
+     "Labels": "com.docker.compose.project=shop", "Mounts": "shop_data"}
+  ],
+  "Volumes": [{"Name": "shop_data", "Size": "2GB"}]
+}"#;
+
+#[test]
+fn a_compose_project_is_one_row_removed_with_what_only_it_uses() {
+    let backend = FakeBackend::new(Outcome::Done);
+    let scanner: Scanner = Arc::new(|lang: Lang| Catalog {
+        items: sklad::scan::docker::items(&sklad::scan::docker::parse(DOCKER), lang.text()),
+        ..Catalog::default()
+    });
+    let mut harness = window_speaking(Arc::clone(&backend), Vec2::new(1360.0, 1200.0), scanner, Lang::Uk);
+    settle(&mut harness);
+    harness.get_by_label_contains("Консольні").click();
+    settle(&mut harness);
+    shot(&mut harness, "29-docker-list");
+    assert!(has_row(&harness, "shop"));
+    assert!(
+        has_row(&harness, "redis:7"),
+        "an image nothing uses keeps its own row"
+    );
+    assert!(
+        !has_row(&harness, "postgres:16"),
+        "an image only the project uses is part of it"
+    );
+    assert!(!has_row(&harness, "shop_data"));
+    harness.get_by_role_and_label(Role::Row, "shop").click();
+    settle(&mut harness);
+    shot(&mut harness, "30-docker-project");
+    assert!(harness.query_by_label("Що входить").is_some());
+    assert!(harness.query_by_label_contains("shop_data").is_some());
+    harness
+        .get(By::new().role(Role::Button).label_contains("Видалити"))
+        .click();
+    settle(&mut harness);
+    harness.get_by_label("Я розумію наслідки").click();
+    confirm(&mut harness);
+    let commands = backend.commands();
+    assert_eq!(commands.len(), 1);
+    assert_eq!(
+        commands[0].shown,
+        "docker container rm becf455de171 && docker image rm sha256:0b0ea86881537b3f645aace7e8e3 \
+         && docker volume rm shop_data"
+    );
 }

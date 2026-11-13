@@ -17,7 +17,7 @@ use eframe::egui::{self, CentralPanel, Frame, Id, Panel, ScrollArea, Ui, vec2};
 
 use crate::i18n::{Choice, Lang, Text};
 use crate::launch;
-use crate::model::{Item, Section, SourceKind};
+use crate::model::{DockerKind, Item, Section, SourceKind};
 use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
@@ -69,6 +69,8 @@ pub struct App {
     dark: bool,
     applied: Option<bool>,
     split: f32,
+    /// The share of the side bar, `None` until the window is first laid out.
+    side: Option<f32>,
     choice: Choice,
 }
 
@@ -79,6 +81,8 @@ fn unix_now() -> i64 {
 }
 
 const SIDE_BAR: f32 = du(64.0);
+/// The narrowest the side bar gets, in DU: its labels still fit.
+const SIDE_BAR_MIN: f32 = 40.0;
 /// The share of the list beside the card, at first and after a double click on the divider.
 const SPLIT: f32 = 0.55;
 
@@ -108,6 +112,19 @@ fn section_icon(section: Section) -> Icon {
         Section::Fonts => icon::FONT_DOWNLOAD,
         Section::Drivers => icon::MEMORY,
         Section::Meta => icon::LAYERS,
+    }
+}
+
+/// What a row shows in its avatar: the icon of its kind for a Docker object, which has no
+/// picture, and the picture of the program otherwise.
+pub(crate) fn picture<'a>(item: &Item, pictures: &'a mut Pictures) -> operator::content::Picture<'a> {
+    use operator::content::Picture;
+    match item.docker {
+        Some(DockerKind::Project) => Picture::Glyph(icon::ACCOUNT_TREE),
+        Some(DockerKind::Container) => Picture::Glyph(icon::BOX),
+        Some(DockerKind::Image) => Picture::Glyph(icon::STACKS),
+        Some(DockerKind::Volume) => Picture::Glyph(icon::DATABASE),
+        None => pictures.get(item.icon.as_deref()),
     }
 }
 
@@ -146,6 +163,7 @@ impl App {
             dark,
             applied: None,
             split: SPLIT,
+            side: None,
             choice,
         };
         app.rescan(ctx);
@@ -481,7 +499,18 @@ impl App {
             text: self.text(),
         };
         match list::show(ui, &rows, &mut self.pictures, palette) {
-            Some(list::Event::Select(id)) => self.select(&id),
+            // The selected row pressed again closes the card.
+            Some(list::Event::Select(id)) => {
+                if self
+                    .selection
+                    .as_ref()
+                    .is_some_and(|selection| selection.id == id)
+                {
+                    self.selection = None;
+                } else {
+                    self.select(&id);
+                }
+            }
             Some(list::Event::Sort(sorting)) => {
                 list::sort_by(&mut self.view, sorting);
                 self.refilter();
@@ -522,9 +551,41 @@ impl App {
                     ));
                 }
             }
+            Some(detail::Action::Close) => self.selection = None,
             Some(detail::Action::Open(url)) => ui.ctx().open_url(egui::OpenUrl::new_tab(url)),
-            Some(detail::Action::Follow(name)) => self.select(&format!("pacman:{name}")),
+            Some(detail::Action::Follow(name)) => {
+                // A neighbour comes from the same source: a package names packages, a Docker
+                // row names Docker rows.
+                let id = self.catalog.as_ref().and_then(|catalog| {
+                    catalog
+                        .items
+                        .iter()
+                        .find(|other| other.source == item.source && other.package == name)
+                        .map(|other| other.id.clone())
+                });
+                self.select(&id.unwrap_or_else(|| format!("pacman:{name}")));
+            }
             None => {}
+        }
+    }
+
+    /// The tool bar over the list, and the card beside it when something is selected.
+    fn catalogue(&mut self, ui: &mut Ui, time: f64, now: i64, palette: &Palette) {
+        self.tool_bar(ui, time, palette);
+        if self.selection.is_some() {
+            let mut split = self.split;
+            let pane = SplitPane {
+                id: Id::unique("list and card"),
+                initial: SPLIT,
+                min_size: 90.0,
+            };
+            pane.show(ui, &mut split, palette, |ui, side| match side {
+                Pane::Start => self.list(ui, now, palette),
+                Pane::End => self.card(ui, now, palette),
+            });
+            self.split = split;
+        } else {
+            self.list(ui, now, palette);
         }
     }
 
@@ -549,37 +610,22 @@ impl App {
             .frame(Frame::NONE)
             .show(ui, |ui| self.header(ui, palette));
 
-        let side = Frame::new().fill(palette.background);
-        Panel::left("sections")
-            .frame(side)
-            .exact_size(SIDE_BAR)
-            .resizable(false)
-            .show(ui, |ui| {
-                let rect = ui.max_rect();
-                self.side_bar(ui, palette);
-                let line = egui::Stroke::new(operator::state::BORDER, palette.border);
-                ui.painter().vline(rect.right(), rect.y_range(), line);
-            });
-
         let centre = Frame::new().fill(palette.background);
         CentralPanel::default().frame(centre).show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            self.tool_bar(ui, time, palette);
-            if self.selection.is_some() {
-                let mut split = self.split;
-                let pane = SplitPane {
-                    id: Id::unique("list and card"),
-                    initial: SPLIT,
-                    min_size: 90.0,
-                };
-                pane.show(ui, &mut split, palette, |ui, side| match side {
-                    Pane::Start => self.list(ui, now, palette),
-                    Pane::End => self.card(ui, now, palette),
-                });
-                self.split = split;
-            } else {
-                self.list(ui, now, palette);
-            }
+            // The side bar starts at its own width, whatever the width of the window.
+            let initial = SIDE_BAR / ui.available_width().max(SIDE_BAR);
+            let mut side = self.side.unwrap_or(initial);
+            let sections = SplitPane {
+                id: Id::unique("sections and catalogue"),
+                initial,
+                min_size: SIDE_BAR_MIN,
+            };
+            sections.show(ui, &mut side, palette, |ui, pane| match pane {
+                Pane::Start => self.side_bar(ui, palette),
+                Pane::End => self.catalogue(ui, time, now, palette),
+            });
+            self.side = Some(side);
         });
 
         let exit = self.dialog.as_mut().and_then(|dialog| dialog.show(&ctx, palette));

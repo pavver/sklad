@@ -17,6 +17,7 @@ The design system marks these components as Draft, and sklad uses them anyway:
 
 * `DataTable` ([src/ui/operator/data_table.rs](src/ui/operator/data_table.rs)): the catalogue table.
   It departs from the specification, with the maintainer's agreement: the first cell may lead with a square slot, which holds the `Avatar` of the program.
+  That `Avatar` departs from its own specification too, with the same agreement: a Docker row, which has no image, shows the icon of its kind in place of the initial.
 * `PropertyList` (in [src/ui/operator/content.rs](src/ui/operator/content.rs)): the facts on the card.
 * `Toolbar` (in [src/ui/operator/layout.rs](src/ui/operator/layout.rs)): the bar above the table; its overflow menu is not ported.
 

@@ -209,6 +209,14 @@ pub static TEXT: Text = Text {
     docker_image: "Образ Docker",
     docker_volume: "Том Docker: данные, которые хранят контейнеры",
     docker_data_lost: "Его содержимое не вернуть: Docker удаляет его навсегда.",
+    docker_project: |count| {
+        let containers = plural(count as i64, "контейнер", "контейнера", "контейнеров");
+        format!("Проект Docker Compose: {count} {containers}")
+    },
+    heading_docker_parts: "Что входит",
+    docker_part_container: "Контейнер",
+    docker_part_image: "Образ",
+    docker_part_volume: "Том",
     rust_toolchain: "Инструментарий Rust: компилятор, cargo и стандартная библиотека",
     default_toolchain: "Это инструментарий по умолчанию: без него cargo и rustc перестанут работать.",
 };

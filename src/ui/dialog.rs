@@ -256,7 +256,20 @@ impl Dialog {
             Removal::Flatpak { .. } => self.text.flatpak_note.to_owned(),
             Removal::Steam { .. } => self.text.steam_note.to_owned(),
             Removal::Cargo { .. } => self.text.cargo_note.to_owned(),
-            Removal::Docker { .. } => (self.text.through_manager)("Docker"),
+            Removal::Docker { parts } => {
+                let list = parts
+                    .iter()
+                    .map(|part| {
+                        format!(
+                            "{} {}",
+                            super::detail::docker_part(part.object, self.text),
+                            part.name
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                format!("{}\n{list}", (self.text.through_manager)("Docker"))
+            }
             Removal::Files { paths, access } => {
                 let list = paths
                     .iter()

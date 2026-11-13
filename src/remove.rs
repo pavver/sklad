@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
-use crate::model::{Access, DockerObject, FlatpakScope, Item, PackageSystem, Removal};
+use crate::model::{Access, DockerObject, DockerPart, FlatpakScope, Item, PackageSystem, Removal};
 use crate::plan::{Mode, PackageDb, Plan};
 
 /// A command in two forms: what is executed and what is shown to the person.
@@ -134,6 +134,47 @@ fn manager_spec(argv: &[String], access: Access) -> Spec {
     }
 }
 
+/// One `docker … rm` for each kind of object, containers first, so that nothing uses an image or
+/// a volume by the time it is removed. Several commands run one after another in a shell and
+/// stop at the first that fails.
+fn docker_spec(parts: &[DockerPart]) -> Option<Spec> {
+    let commands: Vec<Vec<String>> = [
+        (DockerObject::Container, "container"),
+        (DockerObject::Image, "image"),
+        (DockerObject::Volume, "volume"),
+    ]
+    .into_iter()
+    .filter_map(|(object, kind)| {
+        let ids = parts
+            .iter()
+            .filter(|part| part.object == object)
+            .map(|part| part.id.clone());
+        let argv: Vec<String> = ["docker", kind, "rm"]
+            .map(str::to_owned)
+            .into_iter()
+            .chain(ids)
+            .collect();
+        (argv.len() > 3).then_some(argv)
+    })
+    .collect();
+    let shown = commands
+        .iter()
+        .map(|argv| quoted(argv))
+        .collect::<Vec<_>>()
+        .join(" && ");
+    match commands.as_slice() {
+        [] => None,
+        [one] => Some(Spec {
+            argv: one.clone(),
+            shown,
+        }),
+        _ => Some(Spec {
+            argv: vec!["sh".to_owned(), "-c".to_owned(), shown.clone()],
+            shown,
+        }),
+    }
+}
+
 /// The command for anything but pacman. `None` for a pacman item or a path refused above.
 pub fn other_spec(removal: &Removal) -> Option<Spec> {
     match removal {
@@ -151,14 +192,7 @@ pub fn other_spec(removal: &Removal) -> Option<Spec> {
         }
         Removal::Steam { app_id } => Some(direct(&["xdg-open", &format!("steam://uninstall/{app_id}")])),
         Removal::Cargo { name } => Some(direct(&["cargo", "uninstall", name])),
-        Removal::Docker { object, id } => {
-            let kind = match object {
-                DockerObject::Container => "container",
-                DockerObject::Image => "image",
-                DockerObject::Volume => "volume",
-            };
-            Some(direct(&["docker", kind, "rm", id]))
-        }
+        Removal::Docker { parts } => docker_spec(parts),
         Removal::Files { paths, access } => {
             if !paths.iter().all(|path| path_is_removable(path)) {
                 return None;
@@ -200,11 +234,9 @@ pub fn is_irreversible(item: &Item) -> bool {
         Removal::Files {
             access: Access::Root,
             ..
-        } | Removal::Docker {
-            object: DockerObject::Container | DockerObject::Volume,
-            ..
         }
-    )
+    ) || matches!(&item.removal, Removal::Docker { parts }
+        if parts.iter().any(|part| part.object != DockerObject::Image))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -497,26 +529,40 @@ mod tests {
     }
 
     #[test]
-    fn docker_removes_each_object_by_its_own_command() {
-        let command = |object, id: &str| {
-            other_spec(&Removal::Docker {
-                object,
-                id: id.to_owned(),
-            })
-            .map(|spec| spec.shown)
+    fn docker_removes_containers_before_what_they_use() {
+        let part = |object, id: &str| DockerPart {
+            object,
+            id: id.to_owned(),
+            name: id.to_owned(),
+            size: None,
         };
+        let spec = |parts: Vec<DockerPart>| other_spec(&Removal::Docker { parts });
+        let image = spec(vec![part(DockerObject::Image, "sha256:0b0e")]);
         assert_eq!(
-            command(DockerObject::Container, "becf455de171"),
-            Some("docker container rm becf455de171".to_owned())
+            image.map(|spec| (spec.argv, spec.shown)),
+            Some((
+                ["docker", "image", "rm", "sha256:0b0e"]
+                    .map(str::to_owned)
+                    .to_vec(),
+                "docker image rm sha256:0b0e".to_owned()
+            ))
         );
+        let project = spec(vec![
+            part(DockerObject::Volume, "server_data"),
+            part(DockerObject::Container, "becf455de171"),
+            part(DockerObject::Image, "sha256:0b0e"),
+            part(DockerObject::Container, "a1b2c3"),
+        ]);
+        let script = "docker container rm becf455de171 a1b2c3 && docker image rm sha256:0b0e \
+                      && docker volume rm server_data";
         assert_eq!(
-            command(DockerObject::Image, "sha256:0b0e"),
-            Some("docker image rm sha256:0b0e".to_owned())
+            project.map(|spec| (spec.argv, spec.shown)),
+            Some((
+                ["sh", "-c", script].map(str::to_owned).to_vec(),
+                script.to_owned()
+            ))
         );
-        assert_eq!(
-            command(DockerObject::Volume, "server_data"),
-            Some("docker volume rm server_data".to_owned())
-        );
+        assert_eq!(spec(Vec::new()), None);
     }
 
     #[test]

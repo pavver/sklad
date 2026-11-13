@@ -258,6 +258,7 @@ fn item_of(entry: Entry, lang: Lang) -> Item {
         launch: Some(Launch::Desktop(
             format!("/usr/share/applications/{}.desktop", entry.package).into(),
         )),
+        docker: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
@@ -292,6 +293,7 @@ fn toolchain(title: &str, name: &str, version: &str, lang: Lang) -> Item {
         icon: None,
         launchers: Vec::new(),
         launch: None,
+        docker: None,
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),

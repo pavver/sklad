@@ -194,6 +194,27 @@ pub enum DockerObject {
     Volume,
 }
 
+/// What a Docker row of the catalogue stands for: a Compose project, a container outside any
+/// project, or an image or a volume more than one of them uses, or none does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockerKind {
+    Project,
+    Container,
+    Image,
+    Volume,
+}
+
+/// One object a Docker row removes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DockerPart {
+    pub object: DockerObject,
+    /// The id or name Docker knows it by.
+    pub id: String,
+    /// The name a person knows it by.
+    pub name: String,
+    pub size: Option<u64>,
+}
+
 /// Who may touch a path that is removed as plain files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Access {
@@ -231,10 +252,10 @@ pub enum Removal {
     Cargo {
         name: String,
     },
-    /// A container, an image or a volume, by the id or name Docker knows it by.
+    /// Containers, images and volumes, removed together: the containers first, so that nothing
+    /// uses the images and volumes after them.
     Docker {
-        object: DockerObject,
-        id: String,
+        parts: Vec<DockerPart>,
     },
     Files {
         paths: Vec<PathBuf>,
@@ -274,6 +295,8 @@ pub struct Item {
     pub launchers: Vec<String>,
     /// `None` for anything without a window to open.
     pub launch: Option<Launch>,
+    /// What a Docker row stands for, `None` for everything else.
+    pub docker: Option<DockerKind>,
     pub groups: Vec<String>,
     pub depends: Vec<String>,
     pub required_by: Vec<String>,

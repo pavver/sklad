@@ -2,12 +2,18 @@
 //!
 //! One call gives all three with their sizes. Without Docker, or without the right to reach its
 //! daemon, the call prints nothing and the catalogue simply has no Docker entries.
+//!
+//! The catalogue groups them the way a package groups its files: a Compose project, or a
+//! container outside any project, is one row with the images and volumes only it uses. An image
+//! or a volume more than one of them uses, or none does, keeps a row of its own.
+
+use std::collections::BTreeMap;
 
 use serde_json::Value;
 
 use super::blank;
 use crate::i18n::Text;
-use crate::model::{DockerObject, Item, Removal, Source, Usage};
+use crate::model::{DockerKind, DockerObject, DockerPart, Item, Reason, Removal, Source, Usage};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Container {
@@ -29,6 +35,9 @@ pub struct Image {
     pub name: String,
     pub tag: String,
     pub size: Option<u64>,
+    /// What only this image holds, which is what removing it frees; layers it shares with
+    /// other images stay.
+    pub unique_size: Option<u64>,
     pub created: Option<i64>,
 }
 
@@ -149,6 +158,7 @@ fn image(value: &Value) -> Image {
         name,
         tag: if tag == "<none>" { String::new() } else { tag },
         size: parse_size(&field(value, "Size")),
+        unique_size: parse_size(&field(value, "UniqueSize")),
         created: parse_time(&field(value, "CreatedAt")),
     }
 }
@@ -174,7 +184,7 @@ pub fn parse(json: &str) -> Docker {
 /// Whether a container runs this image: Docker names it as it was asked for, so `rust` stands
 /// for `rust:latest`.
 fn runs(container: &Container, image: &Image) -> bool {
-    container.image == image.name
+    !container.image.is_empty() && container.image == image.name
         || format!("{}:latest", container.image) == image.name
         || image
             .id
@@ -182,64 +192,212 @@ fn runs(container: &Container, image: &Image) -> bool {
             .starts_with(&container.image)
 }
 
-fn docker_item(object: DockerObject, id: &str, name: &str) -> Item {
-    let key = match object {
-        DockerObject::Container => "docker-container",
-        DockerObject::Image => "docker-image",
-        DockerObject::Volume => "docker-volume",
+/// A Compose project, or a container outside any project.
+struct Unit<'a> {
+    project: Option<&'a str>,
+    containers: Vec<&'a Container>,
+}
+
+impl Unit<'_> {
+    fn title(&self) -> &str {
+        match (self.project, self.containers.first()) {
+            (Some(project), _) => project,
+            (None, Some(container)) => &container.name,
+            (None, None) => "",
+        }
+    }
+
+    fn uses_image(&self, image: &Image) -> bool {
+        self.containers.iter().any(|container| runs(container, image))
+    }
+
+    fn uses_volume(&self, volume: &Volume) -> bool {
+        self.containers
+            .iter()
+            .any(|container| container.volumes.contains(&volume.name))
+    }
+}
+
+fn units(docker: &Docker) -> Vec<Unit<'_>> {
+    let mut projects: BTreeMap<&str, Vec<&Container>> = BTreeMap::new();
+    let mut units = Vec::new();
+    for container in &docker.containers {
+        match &container.project {
+            Some(project) => projects.entry(project).or_default().push(container),
+            None => units.push(Unit {
+                project: None,
+                containers: vec![container],
+            }),
+        }
+    }
+    units.extend(projects.into_iter().map(|(project, containers)| Unit {
+        project: Some(project),
+        containers,
+    }));
+    units
+}
+
+fn image_part(image: &Image) -> DockerPart {
+    DockerPart {
+        object: DockerObject::Image,
+        id: image.id.clone(),
+        name: image.name.clone(),
+        size: image.unique_size.or(image.size),
+    }
+}
+
+fn volume_part(volume: &Volume) -> DockerPart {
+    DockerPart {
+        object: DockerObject::Volume,
+        id: volume.name.clone(),
+        name: volume.name.clone(),
+        size: volume.size,
+    }
+}
+
+/// The sum of the sizes Docker reported, `None` when it reported none.
+fn total(parts: &[DockerPart]) -> Option<u64> {
+    parts
+        .iter()
+        .filter_map(|part| part.size)
+        .fold(None, |sum, size| Some(sum.unwrap_or(0) + size))
+}
+
+fn docker_item(kind: DockerKind, key: &str, name: &str) -> Item {
+    let prefix = match kind {
+        DockerKind::Project => "docker-project",
+        DockerKind::Container => "docker-container",
+        DockerKind::Image => "docker-image",
+        DockerKind::Volume => "docker-volume",
     };
-    let removal = Removal::Docker {
-        object,
-        id: id.to_owned(),
+    let mut item = blank(
+        format!("{prefix}:{key}"),
+        name.to_owned(),
+        Source::Docker,
+        Removal::Docker { parts: Vec::new() },
+    );
+    item.docker = Some(kind);
+    item
+}
+
+fn unit_item(unit: &Unit<'_>, own: Vec<DockerPart>, shared: Vec<String>, text: &Text) -> Item {
+    let mut parts: Vec<DockerPart> = unit
+        .containers
+        .iter()
+        .map(|container| DockerPart {
+            object: DockerObject::Container,
+            id: container.id.clone(),
+            name: container.name.clone(),
+            size: container.size,
+        })
+        .collect();
+    parts.extend(own);
+    let title = unit.title().to_owned();
+    let mut item = match (unit.project, unit.containers.first()) {
+        (None, Some(container)) => {
+            let mut item = docker_item(DockerKind::Container, &container.id, &title);
+            item.version = container.image.clone();
+            item.summary = (text.docker_container)(&container.image);
+            item
+        }
+        _ => {
+            let mut item = docker_item(DockerKind::Project, &title, &title);
+            item.summary = (text.docker_project)(unit.containers.len());
+            item
+        }
     };
-    blank(format!("{key}:{id}"), name.to_owned(), Source::Docker, removal)
+    item.reason = Some(Reason::Explicit);
+    item.size = total(&parts);
+    item.installed = unit
+        .containers
+        .iter()
+        .filter_map(|container| container.created)
+        .min();
+    item.depends = shared;
+    if unit.containers.iter().any(|container| container.running) {
+        item.usage = Usage::Running;
+    }
+    item.removal = Removal::Docker { parts };
+    item
+}
+
+/// An image or a volume that is not one unit's own: nothing uses it, or several units do.
+fn loose_item(kind: DockerKind, part: DockerPart, users: Vec<String>, summary: &str) -> Item {
+    let mut item = docker_item(kind, &part.id, &part.name);
+    item.reason = Some(Reason::Dependency);
+    item.summary = summary.to_owned();
+    item.size = part.size;
+    item.required_by = users;
+    item.removal = Removal::Docker { parts: vec![part] };
+    item
 }
 
 pub fn items(docker: &Docker, text: &Text) -> Vec<Item> {
-    let mut items = Vec::new();
-    for container in &docker.containers {
-        let mut item = docker_item(DockerObject::Container, &container.id, &container.name);
-        item.version = container.image.clone();
-        item.summary = (text.docker_container)(&container.image);
-        item.description = item.summary.clone();
-        item.size = container.size;
-        item.installed = container.created;
-        item.groups = container.project.iter().cloned().collect();
-        item.depends = std::iter::once(container.image.clone())
-            .chain(container.volumes.iter().cloned())
-            .collect();
-        if container.running {
-            item.usage = Usage::Running;
+    let units = units(docker);
+    let image_users: Vec<Vec<usize>> = docker
+        .images
+        .iter()
+        .map(|image| {
+            (0..units.len())
+                .filter(|&at| units[at].uses_image(image))
+                .collect()
+        })
+        .collect();
+    let volume_users: Vec<Vec<usize>> = docker
+        .volumes
+        .iter()
+        .map(|volume| {
+            (0..units.len())
+                .filter(|&at| units[at].uses_volume(volume))
+                .collect()
+        })
+        .collect();
+    let titles =
+        |users: &[usize]| -> Vec<String> { users.iter().map(|&at| units[at].title().to_owned()).collect() };
+    let mut own: Vec<Vec<DockerPart>> = vec![Vec::new(); units.len()];
+    let mut shared: Vec<Vec<String>> = vec![Vec::new(); units.len()];
+    let mut loose = Vec::new();
+    for (image, users) in docker.images.iter().zip(&image_users) {
+        if let [only] = users.as_slice() {
+            own[*only].push(image_part(image));
+            continue;
         }
-        items.push(item);
-    }
-    for image in &docker.images {
-        let mut item = docker_item(DockerObject::Image, &image.id, &image.name);
+        for &at in users {
+            shared[at].push(image.name.clone());
+        }
+        let mut item = loose_item(
+            DockerKind::Image,
+            image_part(image),
+            titles(users),
+            text.docker_image,
+        );
         item.version = image.tag.clone();
-        item.summary = text.docker_image.to_owned();
-        item.description = item.summary.clone();
-        item.size = image.size;
         item.installed = image.created;
-        item.required_by = docker
-            .containers
-            .iter()
-            .filter(|container| runs(container, image))
-            .map(|container| container.name.clone())
-            .collect();
-        items.push(item);
+        loose.push(item);
     }
-    for volume in &docker.volumes {
-        let mut item = docker_item(DockerObject::Volume, &volume.name, &volume.name);
-        item.summary = text.docker_volume.to_owned();
+    for (volume, users) in docker.volumes.iter().zip(&volume_users) {
+        if let [only] = users.as_slice() {
+            own[*only].push(volume_part(volume));
+            continue;
+        }
+        for &at in users {
+            shared[at].push(volume.name.clone());
+        }
+        loose.push(loose_item(
+            DockerKind::Volume,
+            volume_part(volume),
+            titles(users),
+            text.docker_volume,
+        ));
+    }
+    let mut items: Vec<Item> = units
+        .iter()
+        .zip(own.into_iter().zip(shared))
+        .map(|(unit, (own, shared))| unit_item(unit, own, shared, text))
+        .chain(loose)
+        .collect();
+    for item in &mut items {
         item.description = item.summary.clone();
-        item.size = volume.size;
-        item.required_by = docker
-            .containers
-            .iter()
-            .filter(|container| container.volumes.contains(&volume.name))
-            .map(|container| container.name.clone())
-            .collect();
-        items.push(item);
     }
     items
 }
@@ -248,14 +406,15 @@ pub fn items(docker: &Docker, text: &Text) -> Vec<Item> {
 mod tests {
     use super::*;
     use crate::i18n::Lang;
+    use crate::model::DockerKind;
     use crate::remove::is_irreversible;
 
     const DF: &str = r#"{
       "Images": [
         {"ID": "sha256:0b0ea86881537b3f645aace7e8e3", "Repository": "rust", "Tag": "latest",
-         "Size": "1.33GB", "CreatedAt": "2026-11-12 22:25:20 +0200 EET"},
+         "Size": "1.33GB", "UniqueSize": "1.1GB", "CreatedAt": "2026-11-12 22:25:20 +0200 EET"},
         {"ID": "sha256:dea68412bf5c099f4eb8a6a2f63a", "Repository": "<none>", "Tag": "<none>",
-         "Size": "52.1MB", "CreatedAt": "2026-10-01 10:00:00 +0000 UTC"}
+         "Size": "52.1MB", "UniqueSize": "52.1MB", "CreatedAt": "2026-10-01 10:00:00 +0000 UTC"}
       ],
       "Containers": [
         {"ID": "becf455de171", "Names": "server-remote-1", "Image": "rust", "State": "running",
@@ -263,7 +422,12 @@ mod tests {
          "Labels": "com.docker.compose.oneoff=False,com.docker.compose.project=server",
          "Mounts": "server_data"},
         {"ID": "a1b2c3", "Names": "old", "Image": "dea68412bf5c", "State": "exited",
-         "Size": "0B", "CreatedAt": "2026-10-02 10:00:00 +0000 UTC", "Labels": "", "Mounts": ""}
+         "Size": "0B", "CreatedAt": "2026-10-02 10:00:00 +0000 UTC", "Labels": "", "Mounts": ""},
+        {"ID": "d4e5f6", "Names": "server-worker-1", "Image": "rust", "State": "exited",
+         "Size": "2kB", "CreatedAt": "2026-10-29 10:00:00 +0000 UTC",
+         "Labels": "com.docker.compose.project=server", "Mounts": "server_data"},
+        {"ID": "0a0b0c", "Names": "scratch", "Image": "rust:latest", "State": "exited",
+         "Size": "5kB", "CreatedAt": "2026-11-01 10:00:00 +0000 UTC", "Labels": "", "Mounts": ""}
       ],
       "Volumes": [
         {"Name": "server_data", "Size": "284.5MB"},
@@ -301,37 +465,86 @@ mod tests {
         assert_eq!(parse("not json"), Docker::default());
     }
 
+    fn part(object: DockerObject, id: &str, name: &str, size: Option<u64>) -> DockerPart {
+        DockerPart {
+            object,
+            id: id.to_owned(),
+            name: name.to_owned(),
+            size,
+        }
+    }
+
     #[test]
-    fn each_object_is_removed_by_its_own_command_and_knows_its_users() {
+    fn a_project_or_a_lone_container_is_one_row_with_what_only_it_uses() {
         let items = items(&parse(DF), Lang::En.text());
+        let ids: Vec<&str> = items.iter().map(|item| item.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "docker-container:a1b2c3",
+                "docker-container:0a0b0c",
+                "docker-project:server",
+                "docker-image:sha256:0b0ea86881537b3f645aace7e8e3",
+                "docker-volume:cache",
+            ],
+            "the untagged image and server_data belong to one row each"
+        );
         let find = |id: &str| items.iter().find(|item| item.id == id);
-        let server = find("docker-container:becf455de171");
+        let server = find("docker-project:server");
+        assert_eq!(server.and_then(|item| item.docker), Some(DockerKind::Project));
         assert_eq!(server.map(|item| item.usage), Some(Usage::Running));
         assert_eq!(
-            server.map(|item| item.depends.clone()),
-            Some(vec!["rust".to_owned(), "server_data".to_owned()])
+            server.map(|item| item.summary.as_str()),
+            Some("A Docker Compose project: 2 containers")
         );
+        assert_eq!(
+            server.map(|item| item.removal.clone()),
+            Some(Removal::Docker {
+                parts: vec![
+                    part(
+                        DockerObject::Container,
+                        "becf455de171",
+                        "server-remote-1",
+                        Some(1020)
+                    ),
+                    part(DockerObject::Container, "d4e5f6", "server-worker-1", Some(2000)),
+                    part(
+                        DockerObject::Volume,
+                        "server_data",
+                        "server_data",
+                        Some(284_500_000)
+                    ),
+                ]
+            })
+        );
+        assert_eq!(server.and_then(|item| item.size), Some(284_503_020));
+        assert_eq!(
+            server.map(|item| item.depends.clone()),
+            Some(vec!["rust:latest".to_owned()])
+        );
+
+        let old = find("docker-container:a1b2c3");
+        assert_eq!(old.and_then(|item| item.docker), Some(DockerKind::Container));
+        assert_eq!(
+            old.and_then(|item| item.size),
+            Some(52_100_000),
+            "the image only it uses is counted by what removing it frees"
+        );
+
         let rust = find("docker-image:sha256:0b0ea86881537b3f645aace7e8e3");
         assert_eq!(
             rust.map(|item| item.required_by.clone()),
-            Some(vec!["server-remote-1".to_owned()])
+            Some(vec!["scratch".to_owned(), "server".to_owned()])
         );
-        let untagged = find("docker-image:sha256:dea68412bf5c099f4eb8a6a2f63a");
-        assert_eq!(
-            untagged.map(|item| item.required_by.clone()),
-            Some(vec!["old".to_owned()])
+        assert_eq!(rust.and_then(|item| item.size), Some(1_100_000_000));
+        assert!(!rust.is_some_and(Item::is_orphan));
+        let cache = find("docker-volume:cache");
+        assert!(
+            cache.is_some_and(Item::is_orphan),
+            "a volume nothing uses is left over"
         );
-        let data = find("docker-volume:server_data");
-        assert_eq!(
-            data.map(|item| item.removal.clone()),
-            Some(Removal::Docker {
-                object: DockerObject::Volume,
-                id: "server_data".to_owned()
-            })
-        );
-        assert_eq!(data.and_then(|item| item.size), Some(284_500_000));
         assert!(items.iter().all(|item| item.source == Source::Docker));
-        let lost: Vec<bool> = [server, rust, data]
+        let lost: Vec<bool> = [server, rust, cache]
             .map(|item| item.is_some_and(is_irreversible))
             .to_vec();
         assert_eq!(lost, [true, false, true], "an image can be pulled again");

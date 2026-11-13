@@ -35,7 +35,7 @@ C'est une façon graphique de trouver les paquets inutilisés, les dépendances 
 ## Fonctionnalités
 
 - **Un seul catalogue** de programmes, outils en console, bibliothèques, polices, pilotes et métapaquets.
-- **Au-delà des paquets :** les conteneurs, images et volumes Docker avec leur taille et ce qui les utilise, et les environnements Python de virtualenvwrapper, pyenv, conda et mamba.
+- **Au-delà des paquets :** les projets Docker Compose et les conteneurs, chacun sur une ligne avec les images et volumes que lui seul utilise et supprimé avec eux, tandis que les images et volumes que rien n'utilise ressortent comme des restes ; et les environnements Python de virtualenvwrapper, pyenv, conda et mamba.
 - **Des détails pour chaque entrée :** icône, description, licence, site web, développeur, taille, date d'installation.
 - **Dernier lancement** d'après le journal de Plasma et Steam, pour faire ressortir ce que vous n'utilisez plus.
 - **Filtres :** par section, par source, paquets installés par vous, dépendances, dépendances inutiles (orphelines), et recherche.

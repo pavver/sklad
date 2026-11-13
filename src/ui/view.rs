@@ -213,6 +213,7 @@ mod tests {
             icon: None,
             launchers: Vec::new(),
             launch: None,
+            docker: None,
             groups: Vec::new(),
             depends: Vec::new(),
             required_by: Vec::new(),

@@ -35,7 +35,7 @@ It is a graphical way to find unused packages, orphan dependencies, forgotten de
 ## Features
 
 - **One catalogue** of programs, console tools, libraries, fonts, drivers and metapackages.
-- **Beyond packages:** Docker containers, images and volumes with their size and what uses them, and the Python environments of virtualenvwrapper, pyenv, conda and mamba.
+- **Beyond packages:** Docker Compose projects and containers, each one row with the images and volumes only it uses and removed together with them, while images and volumes nothing uses stand out as leftovers; and the Python environments of virtualenvwrapper, pyenv, conda and mamba.
 - **Details for each entry:** icon, description, license, website, developer, size, install date.
 - **Last launch** from the Plasma log and Steam, to surface what you stopped using.
 - **Filters:** by section, by source, packages you installed yourself, dependencies, unneeded dependencies (orphans), and search.
