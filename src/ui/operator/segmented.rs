@@ -59,11 +59,17 @@ pub fn segmented(
         )
     };
 
+    // The slide follows the selection, not the screen: the position is animated in items, so
+    // the indicator moves with the control when the layout moves it and slides only between
+    // items.
     let slide = secs(motion::SEGMENT_SLIDE_MS);
-    let target = cell(selected.min(items.len().saturating_sub(1)));
+    let target = selected.min(items.len().saturating_sub(1)) as f32;
     let ctx = ui.ctx().clone();
-    let left = ctx.animate_value_with_time(id.with("indicator"), target.left(), slide);
-    let indicator = Rect::from_min_size(pos2(left, track.top()), target.size());
+    let position = ctx.animate_value_with_time(id.with("indicator"), target, slide);
+    let indicator = Rect::from_min_size(
+        pos2(track.left() + cell_width * position, track.top()),
+        vec2(cell_width, track.height()),
+    );
 
     let mut clicked = None;
     let mut responses = Vec::with_capacity(items.len());
@@ -105,4 +111,51 @@ pub fn segmented(
     let outline = Stroke::new(BORDER, palette.border);
     ui.painter().rect_stroke(rect, 0.0, outline, StrokeKind::Inside);
     clicked
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::operator::tokens::DARK;
+    use eframe::egui::{Context, RawInput, epaint::Shape};
+
+    /// The left edge of the indicator drawn in one frame, with the control at `x`.
+    fn indicator_left(ctx: &Context, time: f64, x: f32, selected: usize) -> Option<f32> {
+        let input = RawInput {
+            time: Some(time),
+            ..RawInput::default()
+        };
+        let fill = tint(DARK.accent, 0.15);
+        let mut output = ctx.run_ui(input, |ui| {
+            let items = [Segment::new("a"), Segment::new("b"), Segment::new("c")];
+            ui.scope_builder(
+                egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(x, 0.0), vec2(300.0, 40.0))),
+                |ui| segmented(ui, Id::unique("control"), &items, selected, 300.0, 9.0, &DARK),
+            );
+        });
+        output.textures_delta.clear();
+        output.shapes.iter().find_map(|clipped| match &clipped.shape {
+            Shape::Rect(rect) if rect.fill == fill => Some(rect.rect.left()),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn the_indicator_moves_with_the_control_and_slides_only_between_items() {
+        let ctx = Context::default();
+        let first = indicator_left(&ctx, 0.0, 0.0, 0);
+        let moved = indicator_left(&ctx, 1.0, 120.0, 0);
+        assert_eq!(
+            moved.zip(first).map(|(moved, first)| moved - first),
+            Some(120.0),
+            "a moved control takes its indicator along at once"
+        );
+        // The animation starts in the frame of the change and is halfway 75 ms later.
+        let _ = indicator_left(&ctx, 1.0, 120.0, 1);
+        let step = indicator_left(&ctx, 1.075, 120.0, 1);
+        let settled = indicator_left(&ctx, 2.0, 120.0, 1);
+        let started = step.zip(moved).is_some_and(|(step, moved)| step > moved);
+        let midway = step.zip(settled).is_some_and(|(step, settled)| step < settled);
+        assert!(started && midway, "a new selection slides there");
+    }
 }
