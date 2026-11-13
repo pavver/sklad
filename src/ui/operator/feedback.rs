@@ -211,6 +211,36 @@ struct Toast {
     closing: Option<f64>,
 }
 
+impl Toast {
+    /// A toast added between frames starts its clocks in the first frame that shows it.
+    fn start_clocks(&mut self, now: f64) {
+        if self.born.is_nan() {
+            self.born = now;
+        }
+        if self.closing.is_some_and(f64::is_nan) {
+            self.closing = Some(now);
+        }
+    }
+
+    /// How much of the toast is there, `0` to `1`: it fades in after birth and out on closing.
+    fn presence(&self, now: f64) -> f32 {
+        let eased = |since: f64| standard(((now - since) as f32 / ENTER).min(1.0));
+        eased(self.born) * (1.0 - self.closing.map_or(0.0, eased))
+    }
+
+    /// Counts the time of a toast nobody hovers down, and closes it when its time is up or its
+    /// close button was pressed.
+    fn tick(&mut self, closed: bool, hovered: bool, step: f32, now: f64) {
+        if !hovered {
+            self.left -= step;
+        }
+        let expired = self.left <= 0.0 && !hovered;
+        if (closed || expired) && self.closing.is_none() {
+            self.closing = Some(now);
+        }
+    }
+}
+
 /// `ToastHost`: the stack of toasts at the bottom centre of the window.
 #[derive(Default)]
 pub struct Toasts {
@@ -259,17 +289,8 @@ impl Toasts {
         let width = du(105.0).min(screen.width() - du(8.0));
         let mut bottom = screen.bottom() - du(dim::MARGIN_SCREEN);
         for toast in self.items.iter_mut().rev() {
-            if toast.born.is_nan() {
-                toast.born = now;
-            }
-            if toast.closing.is_some_and(f64::is_nan) {
-                toast.closing = Some(now);
-            }
-            let shown = standard(((now - toast.born) as f32 / ENTER).min(1.0));
-            let gone = toast
-                .closing
-                .map_or(0.0, |at| standard(((now - at) as f32 / ENTER).min(1.0)));
-            let presence = shown * (1.0 - gone);
+            toast.start_clocks(now);
+            let presence = toast.presence(now);
             let shift = du(dim::GUTTER) * (1.0 - presence);
             let area = egui::Area::new(Id::unique(("toast", toast.id)))
                 .order(Order::Foreground)
@@ -280,16 +301,7 @@ impl Toasts {
                     paint_toast(ui, toast, width, close_label, palette)
                 });
             let (closed, height) = area.inner;
-            let hovered = area.response.contains_pointer();
-            if closed && toast.closing.is_none() {
-                toast.closing = Some(now);
-            }
-            if !hovered {
-                toast.left -= step;
-            }
-            if toast.left <= 0.0 && toast.closing.is_none() && !hovered {
-                toast.closing = Some(now);
-            }
+            toast.tick(closed, area.response.contains_pointer(), step, now);
             bottom -= height + du(dim::GUTTER);
         }
         ctx.request_repaint();
@@ -343,4 +355,50 @@ fn paint_toast(ui: &mut Ui, toast: &Toast, width: f32, close_label: &str, palett
         })
         .inner;
     (closed, height)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn toast(left: f32) -> Toast {
+        Toast {
+            id: 0,
+            tone: Tone::Success,
+            text: String::new(),
+            left,
+            born: f64::NAN,
+            closing: None,
+        }
+    }
+
+    #[test]
+    fn a_toast_fades_in_after_birth_and_out_on_closing() {
+        let mut shown = toast(5.0);
+        shown.start_clocks(10.0);
+        assert_eq!(shown.presence(10.0), 0.0);
+        assert_eq!(shown.presence(10.0 + f64::from(ENTER)), 1.0);
+        shown.closing = Some(f64::NAN);
+        shown.start_clocks(20.0);
+        assert_eq!(shown.closing, Some(20.0), "a close asked between frames starts now");
+        assert_eq!(shown.presence(20.0), 1.0);
+        assert_eq!(shown.presence(20.0 + f64::from(ENTER)), 0.0);
+    }
+
+    #[test]
+    fn a_toast_waits_while_hovered_and_closes_when_its_time_is_up() {
+        let mut waiting = toast(1.0);
+        waiting.tick(false, true, 2.0, 3.0);
+        assert_eq!((waiting.left, waiting.closing), (1.0, None), "hovered, it keeps its time");
+        waiting.tick(false, false, 0.5, 4.0);
+        assert_eq!(waiting.closing, None);
+        waiting.tick(false, false, 0.5, 5.0);
+        assert_eq!(waiting.closing, Some(5.0), "time is up");
+        waiting.tick(true, false, 0.5, 6.0);
+        assert_eq!(waiting.closing, Some(5.0), "closing once is enough");
+
+        let mut pressed = toast(9.0);
+        pressed.tick(true, true, 0.0, 7.0);
+        assert_eq!(pressed.closing, Some(7.0), "the close button closes it at once");
+    }
 }
