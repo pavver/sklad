@@ -223,7 +223,8 @@ impl Dialog {
         }
         if !plan.metas.is_empty() {
             let metas = plan.metas.join(", ");
-            wrapped(ui, (self.text.held_by_meta)(&metas, plan.keep.len()), palette);
+            let kept = plan.keep.join(", ");
+            wrapped(ui, (self.text.held_by_meta)(&metas, &kept), palette);
         }
         if !plan.critical.is_empty() {
             let names = plan.critical.join(", ");

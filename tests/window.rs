@@ -283,6 +283,12 @@ fn a_program_out_of_a_metapackage_is_removed_with_its_siblings_kept() {
     open_removal(&mut harness, "Програвач");
     shot(&mut harness, "03-metapackage");
     assert!(harness.query_by_label_contains("метапакет bundle-meta").is_some());
+    assert!(
+        harness
+            .query_by_label_contains("встановлена вами: viewer.")
+            .is_some(),
+        "the sentence names the sibling that stays"
+    );
     confirm(&mut harness);
     let commands = backend.commands();
     assert_eq!(commands.len(), 1, "exactly one command ran");

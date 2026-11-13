@@ -236,7 +236,8 @@ pub struct Text {
     pub needed_by_programs: fn(&str) -> String,
     pub keep_everything: &'static str,
     pub remove_with_them: &'static str,
-    pub held_by_meta: fn(&str, usize) -> String,
+    /// The metapackages, then the packages of theirs that stay.
+    pub held_by_meta: fn(&str, &str) -> String,
     pub critical_packages: fn(&str) -> String,
     pub plan_summary: fn(usize, &str) -> String,
     pub through_manager: fn(&str) -> String,
