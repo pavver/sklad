@@ -7,13 +7,14 @@ use std::thread;
 use eframe::egui::{self, Id, Sense, Ui, vec2};
 
 use super::format;
-use super::operator::code::{CodeBlock, console_terminal};
+use super::operator::code::CodeBlock;
 use super::operator::content::checkbox;
 use super::operator::dialog::{Asked, Dialog as Shell, dialog_hold};
 use super::operator::feedback::{Tone, banner, paint_indeterminate};
 use super::operator::icon;
 use super::operator::segmented::{Segment, natural_width, segmented};
 use super::operator::state::{Activity, Outcome};
+use super::operator::terminal::console_terminal;
 use super::operator::tokens::{Palette, Type, dim, du, text};
 use crate::i18n::Text;
 use crate::model::{Access, Item, Removal, Usage};
