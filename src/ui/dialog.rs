@@ -427,14 +427,22 @@ mod tests {
     #[test]
     fn the_dialog_names_who_removes_and_what_goes() {
         let text = Lang::En.text();
-        assert_eq!(other_note(&Removal::Unavailable { reason: String::new() }, text), None);
+        assert_eq!(
+            other_note(
+                &Removal::Unavailable {
+                    reason: String::new()
+                },
+                text
+            ),
+            None
+        );
         let files = Removal::Files {
-            paths: vec![PathBuf::from("/home/a/x"), PathBuf::from("/home/a/y")],
+            paths: vec![PathBuf::from("/home/me/x"), PathBuf::from("/home/me/y")],
             access: Access::User,
         };
         assert_eq!(
             other_note(&files, text).as_deref(),
-            Some("The files will be moved to the bin:\n/home/a/x\n/home/a/y")
+            Some("The files will be moved to the bin:\n/home/me/x\n/home/me/y")
         );
         let part = |object, name: &str| DockerPart {
             object,
@@ -443,7 +451,10 @@ mod tests {
             size: None,
         };
         let docker = Removal::Docker {
-            parts: vec![part(DockerObject::Container, "web"), part(DockerObject::Volume, "data")],
+            parts: vec![
+                part(DockerObject::Container, "web"),
+                part(DockerObject::Volume, "data"),
+            ],
         };
         let note = other_note(&docker, text).unwrap_or_default();
         assert!(note.starts_with("Will be removed through Docker.\n"), "{note}");
