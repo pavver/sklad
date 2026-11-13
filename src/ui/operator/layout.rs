@@ -17,24 +17,48 @@ fn from_the_end(ui: &mut Ui, rect: Rect, gap: f32, end: impl FnOnce(&mut Ui)) ->
     .rect
 }
 
-/// `Header`: the top bar with a title, a subtitle and actions.
-pub fn header(
+/// A block in the middle of the `Header`: what it holds, and the width it would like.
+///
+/// The design system has no such slot. sklad adds it with the maintainer's agreement, to keep the
+/// search in the middle of the window.
+pub struct HeaderCentre<F> {
+    pub width: f32,
+    pub content: F,
+}
+
+/// `Header`: the top bar with a title, a subtitle and actions, and in sklad an optional block in
+/// the middle.
+pub fn header<C: FnOnce(&mut Ui)>(
     ui: &mut Ui,
     title: &str,
     subtitle: Option<&str>,
     palette: &Palette,
+    centre: Option<HeaderCentre<C>>,
     actions: impl FnOnce(&mut Ui),
 ) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), du(13.5)), Sense::hover());
     ui.painter().rect_filled(rect, 0.0, palette.surface);
     let inner = rect.shrink2(vec2(du(dim::MARGIN_SCREEN), 0.0));
-    let taken = from_the_end(ui, inner, du(dim::GUTTER), actions);
-    let width = (taken.left() - inner.left() - du(dim::GUTTER)).max(0.0);
+    let gap = du(dim::GUTTER);
+    let taken = from_the_end(ui, inner, gap, actions);
     let kind = if subtitle.is_some() {
         Type::RowTitle
     } else {
         Type::AppTitle
     };
+    let mut title_end = taken.left() - gap;
+    if let Some(centre) = centre {
+        let title_wants = galley(ui, weighted(title, kind, BOLD, palette.text_primary))
+            .size()
+            .x
+            .max(subtitle.map_or(0.0, |words| {
+                galley(ui, text(words, Type::Caption, palette.text_secondary))
+                    .size()
+                    .x
+            }));
+        title_end = place_centre(ui, rect, inner, taken.left(), title_wants, centre);
+    }
+    let width = (title_end - inner.left()).max(0.0);
     let title = truncated(ui, weighted(title, kind, BOLD, palette.text_primary), width);
     match subtitle {
         Some(subtitle) => {
@@ -54,6 +78,36 @@ pub fn header(
     }
     line_below(ui, rect, palette.border);
 }
+
+/// Lays the middle block out, centred on the bar while the title and the actions leave room, and
+/// returns where the title has to end. The title gives up its width before the block shrinks
+/// below the share it always keeps.
+fn place_centre<C: FnOnce(&mut Ui)>(
+    ui: &mut Ui,
+    bar: Rect,
+    inner: Rect,
+    actions_left: f32,
+    title_wants: f32,
+    centre: HeaderCentre<C>,
+) -> f32 {
+    let gap = du(dim::GUTTER);
+    let end = actions_left - gap;
+    // The title keeps a short start of itself even in a narrow window.
+    let earliest = inner.left() + title_wants.min(du(TITLE_KEPT)) + gap;
+    let width = centre.width.min(end - earliest).max(0.0);
+    let after_title = inner.left() + title_wants + gap;
+    let start = (bar.center().x - width / 2.0)
+        .max(after_title)
+        .min(end - width)
+        .max(earliest);
+    let place = Rect::from_min_max(pos2(start, inner.top()), pos2(start + width, inner.bottom()));
+    let layout = Layout::left_to_right(Align::Center);
+    ui.scope_builder(UiBuilder::new().max_rect(place).layout(layout), centre.content);
+    start - gap
+}
+
+/// The width in DU the title keeps when the middle block of the header needs the room.
+const TITLE_KEPT: f32 = 24.0;
 
 fn line_below(ui: &Ui, rect: Rect, colour: egui::Color32) {
     ui.painter().hline(

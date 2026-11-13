@@ -26,6 +26,8 @@ Reviewed components that sklad uses with a departure the maintainer agreed to:
 * `CheckboxGroup` ([src/ui/operator/checkbox_group.rs](src/ui/operator/checkbox_group.rs)): the filters of the side bar.
   It is used synchronously, and each tile carries a neutral `Counter` before its indicator box, which the specification does not have yet.
   Section tiles show the icon of the system theme and source tiles the logo of the source, not a Material Symbols glyph; see [Icons](#icons).
+* `Header` (in [src/ui/operator/layout.rs](src/ui/operator/layout.rs)): the top bar of the window.
+  Besides the title and the actions it has a middle block, `HeaderCentre`, which the specification does not have; it holds the search, centred on the window while the title and the actions leave room.
 
 Their specifications may still change, so expect to rework them when the design system marks them Reviewed.
 

@@ -798,6 +798,29 @@ fn controls_of_one_bar_share_their_top_and_height() {
     assert_eq!(search.center().y, refresh.center().y);
 }
 
+#[test]
+fn the_search_sits_in_the_middle_of_the_header() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    let screen = harness.ctx.content_rect();
+    let search = harness.get_by_role(Role::TextInput).rect();
+    let refresh = harness
+        .get(By::new().role(Role::Button).label_contains("Оновити"))
+        .rect();
+    // The text input starts after the magnifier and ends 3 DU before the edge of the empty
+    // field, so its right edge tells where the field is: half of its 80 DU past the middle.
+    let field_right = search.right() + 3.0 * 4.0;
+    let half = 80.0 * 4.0 / 2.0;
+    assert!(
+        (field_right - screen.center().x - half).abs() <= 0.5,
+        "search {search:?} in a window {screen:?}"
+    );
+    assert!(
+        refresh.left() > search.right(),
+        "refresh sits with the actions on the right"
+    );
+}
+
 /// Runs frames until the frame output holds a command the test is after.
 fn wait_for_command(
     harness: &mut Harness<'_, App>,

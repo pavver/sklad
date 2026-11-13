@@ -30,7 +30,7 @@ use operator::content::Picture;
 use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
-use operator::layout::{header, toolbar};
+use operator::layout::{HeaderCentre, header, toolbar};
 use operator::search_field::SearchField;
 use operator::state::{Activity, Look, Outcome, result_hold};
 use operator::tokens::{DARK, LIGHT, Palette, dim, du, install_fonts};
@@ -94,6 +94,8 @@ const PANE_MIN: f32 = 90.0;
 
 /// The largest number a tile of the side bar shows in full; a catalogue rarely holds more.
 const COUNT_MAX: usize = 99_999;
+/// The width in DU the search in the middle of the header would like.
+const SEARCH_WIDTH: f32 = 80.0;
 
 fn origin_icon(origin: Origin) -> Icon {
     match origin {
@@ -351,7 +353,21 @@ impl App {
         let mut refresh = false;
         let mut query = None;
         let look = self.refresh.look(ui.input(|input| input.time), result_hold());
-        header(ui, text.app_name, Some(&subtitle), palette, |ui| {
+        let query_text = &mut self.view.query;
+        let search = HeaderCentre {
+            width: du(SEARCH_WIDTH),
+            content: |ui: &mut Ui| {
+                let field = SearchField {
+                    id: Id::unique("search"),
+                    placeholder: text.search,
+                    clear_label: text.clear_search,
+                    height: dim::ROW_COMPACT,
+                    width: ui.available_width(),
+                };
+                query = field.show(ui, query_text, palette);
+            },
+        };
+        header(ui, text.app_name, Some(&subtitle), palette, Some(search), |ui| {
             toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
             let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
             let selected = Lang::ALL
@@ -367,14 +383,6 @@ impl App {
             }
             .show(ui, selected, palette);
             language = choice.and_then(|index| Lang::ALL.get(index).copied());
-            let field = SearchField {
-                id: Id::unique("search"),
-                placeholder: text.search,
-                clear_label: text.clear_search,
-                height: dim::ROW_COMPACT,
-                width: (ui.available_width() - du(dim::ROW_COMPACT + dim::GUTTER)).clamp(0.0, du(80.0)),
-            };
-            query = field.show(ui, &mut self.view.query, palette);
             refresh = IconButton::new(icon::REFRESH, text.refresh)
                 .look(look)
                 .show(ui, palette)
