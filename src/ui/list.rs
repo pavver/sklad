@@ -131,3 +131,22 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Pal
     }
     events.activated.map(|row| Event::Select(item(row).id.clone()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_header_sorting_turns_into_the_view_and_back() {
+        let mut view = View::default();
+        for column in 0..KEYS.len() {
+            for direction in [Direction::Ascending, Direction::Descending] {
+                sort_by(&mut view, Some((column, direction)));
+                assert_eq!(sorting_of(&view), Some((column, direction)));
+            }
+        }
+        sort_by(&mut view, None);
+        assert_eq!((view.sort, view.order), (SortKey::Catalogue, Order::Ascending));
+        assert_eq!(sorting_of(&view), None, "the catalogue order has no column");
+    }
+}
