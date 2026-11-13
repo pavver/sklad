@@ -1,6 +1,6 @@
 [package]
 name = "sklad-site"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 description = "The website of Sklad, built from Operator UI web components"

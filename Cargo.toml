@@ -1,6 +1,6 @@
 [package]
 name = "sklad"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 license = "MIT"
 description = "Desktop app for Arch Linux, Debian and Ubuntu: everything installed in one list, from any source, with safe removal"

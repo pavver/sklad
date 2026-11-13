@@ -2,7 +2,7 @@
 # Built by .github/workflows/release.yml for the sklad pacman repository.
 
 pkgname=sklad
-pkgver=0.4.0
+pkgver=0.5.0
 pkgrel=1
 pkgdesc='Catalogue of everything installed on Arch Linux, with safe removal'
 arch=('x86_64')

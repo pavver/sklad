@@ -81,6 +81,18 @@
     <display_length compare="ge">1100</display_length>
   </requires>
   <releases>
+    <release version="0.5.0" date="2026-11-13">
+      <description>
+        <p>Sections in the side bar show the icons of the system theme, and sources show their own logos. The search sits
+        in the middle of the header, and the refresh button before the title. While the catalogue loads, the list and
+        the side bar show placeholders in their shape. After a removal the list changes in place and keeps its scroll,
+        while the system is read again in the background. Escape clears the search.</p>
+        <p xml:lang="uk">Розділи на бічній панелі показують іконки системної теми, а джерела — власні логотипи. Пошук
+        стоїть посередині верхньої панелі, а кнопка оновлення — перед назвою. Поки каталог завантажується, список і
+        бічна панель показують заглушки у своїй формі. Після видалення список змінюється на місці й зберігає прокрутку,
+        а система тим часом перечитується у фоні. Escape очищає пошук.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-11-13">
       <description>
         <p>A Docker Compose project or a container is one row with the images and volumes only it uses, each kind
