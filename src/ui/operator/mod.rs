@@ -23,6 +23,7 @@ pub mod state;
 pub mod terminal;
 pub mod text;
 pub mod theme_toggle;
+pub mod toast;
 pub mod tokens;
 
 use eframe::egui::{self, CornerRadius, FontId, Margin, Shadow, Stroke, TextStyle, style::ScrollStyle};
