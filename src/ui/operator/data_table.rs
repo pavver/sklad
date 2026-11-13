@@ -135,6 +135,8 @@ impl DataTable<'_> {
         self.header(ui, header, &spans, palette, &mut events);
         if self.loading {
             let bar = Rect::from_min_size(header.left_bottom(), vec2(header.width(), BORDER_THICK));
+            let response = ui.interact(bar, self.id.with("loading"), Sense::hover());
+            response.widget_info(|| WidgetInfo::labeled(egui::Role::ProgressIndicator, true, "Loading"));
             paint_indeterminate(ui, bar, palette);
         }
 
@@ -237,8 +239,6 @@ impl DataTable<'_> {
     /// Placeholder rows over the whole body: the leading square and a line in every cell, where
     /// the real rows will put theirs.
     fn skeleton(&self, ui: &Ui, body: Rect, spans: &[(f32, f32)], palette: &Palette) {
-        let response = ui.interact(body, self.id.with("skeleton"), Sense::hover());
-        response.widget_info(|| WidgetInfo::labeled(egui::Role::ProgressIndicator, true, "Loading"));
         let rows = (body.height() / ROW).ceil() as usize;
         for row in 0..rows {
             let rect = Rect::from_min_size(
