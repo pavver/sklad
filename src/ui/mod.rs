@@ -68,9 +68,10 @@ pub struct App {
     launched: Option<String>,
     dark: bool,
     applied: Option<bool>,
-    split: f32,
-    /// The share of the side bar, `None` until the window is first laid out.
-    side: Option<f32>,
+    /// The widths of the side bar and of the card, in points. Each stays as the person set it,
+    /// and the list between them takes what the window gives or takes.
+    side: f32,
+    card: f32,
     choice: Choice,
 }
 
@@ -83,8 +84,10 @@ fn unix_now() -> i64 {
 const SIDE_BAR: f32 = du(84.0);
 /// The narrowest the side bar gets, in DU: its labels still fit.
 const SIDE_BAR_MIN: f32 = 64.0;
-/// The share of the list beside the card, at first and after a double click on the divider.
-const SPLIT: f32 = 0.55;
+/// The width of the card at first and after a double click on its divider.
+const CARD: f32 = du(112.0);
+/// The narrowest the list and the card get, in DU.
+const PANE_MIN: f32 = 90.0;
 
 /// The largest number a tile of the side bar shows in full; a catalogue rarely holds more.
 const COUNT_MAX: usize = 99_999;
@@ -180,8 +183,8 @@ impl App {
             launched: None,
             dark,
             applied: None,
-            split: SPLIT,
-            side: None,
+            side: SIDE_BAR,
+            card: CARD,
             choice,
         };
         app.rescan(ctx);
@@ -581,17 +584,20 @@ impl App {
     fn catalogue(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
         self.filter_bar(ui, palette);
         if self.selection.is_some() {
-            let mut split = self.split;
+            let width = ui.available_width().max(1.0);
+            let mut share = 1.0 - self.card / width;
             let pane = SplitPane {
                 id: Id::unique("list and card"),
-                initial: SPLIT,
-                min_size: 90.0,
+                initial: 1.0 - CARD / width,
+                min_size: PANE_MIN,
             };
-            pane.show(ui, &mut split, palette, |ui, side| match side {
+            let moved = pane.show(ui, &mut share, palette, |ui, side| match side {
                 Pane::Start => self.list(ui, now, palette),
                 Pane::End => self.card(ui, now, palette),
             });
-            self.split = split;
+            if moved {
+                self.card = (1.0 - share) * width;
+            }
         } else {
             self.list(ui, now, palette);
         }
@@ -621,19 +627,20 @@ impl App {
         let centre = Frame::new().fill(palette.background);
         CentralPanel::default().frame(centre).show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            // The side bar starts at its own width, whatever the width of the window.
-            let initial = SIDE_BAR / ui.available_width().max(SIDE_BAR);
-            let mut side = self.side.unwrap_or(initial);
+            let width = ui.available_width().max(1.0);
+            let mut share = self.side / width;
             let sections = SplitPane {
                 id: Id::unique("sections and catalogue"),
-                initial,
+                initial: SIDE_BAR / width,
                 min_size: SIDE_BAR_MIN,
             };
-            sections.show(ui, &mut side, palette, |ui, pane| match pane {
+            let moved = sections.show(ui, &mut share, palette, |ui, pane| match pane {
                 Pane::Start => self.side_bar(ui, palette),
                 Pane::End => self.catalogue(ui, now, palette),
             });
-            self.side = Some(side);
+            if moved {
+                self.side = share * width;
+            }
         });
 
         let exit = self.dialog.as_mut().and_then(|dialog| dialog.show(&ctx, palette));

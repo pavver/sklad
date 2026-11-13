@@ -557,7 +557,15 @@ pub struct SplitPane {
 }
 
 impl SplitPane {
-    pub fn show(&self, ui: &mut Ui, ratio: &mut f32, palette: &Palette, mut pane: impl FnMut(&mut Ui, Pane)) {
+    /// Draws both panes. Returns true when the person moved the divider; a share the clamp
+    /// alone changed, because the window got narrower, does not count.
+    pub fn show(
+        &self,
+        ui: &mut Ui,
+        ratio: &mut f32,
+        palette: &Palette,
+        mut pane: impl FnMut(&mut Ui, Pane),
+    ) -> bool {
         let rect = ui.available_rect_before_wrap();
         ui.allocate_rect(rect, Sense::hover());
         let minimum = du(self.min_size).min(rect.width() / 2.0);
@@ -566,6 +574,7 @@ impl SplitPane {
             share.clamp(lowest, 1.0 - lowest)
         };
         *ratio = clamp(*ratio);
+        let clamped = *ratio;
         let hit = du(dim::GUTTER);
         let x = rect.left() + rect.width() * *ratio;
         let handle = Rect::from_x_y_ranges(x - hit / 2.0..=x + hit / 2.0, rect.y_range());
@@ -632,6 +641,7 @@ impl SplitPane {
         if lit {
             ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
         }
+        *ratio != clamped
     }
 }
 

@@ -1210,3 +1210,64 @@ fn filters_are_tiles_of_the_side_bar_and_chips_over_the_list() {
         "no chips without filters"
     );
 }
+
+/// Drags the divider at `x` sideways by `by` points with the pointer.
+fn drag_divider(harness: &mut Harness<'_, App>, x: f32, by: f32) {
+    use eframe::egui::{Event, Modifiers, PointerButton, pos2};
+    let at = pos2(x, 600.0);
+    harness.event(Event::PointerMoved(at));
+    harness.step();
+    harness.event(Event::PointerButton {
+        pos: at,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    });
+    harness.step();
+    for step in 1..=10 {
+        harness.event(Event::PointerMoved(pos2(x + by * step as f32 / 10.0, 600.0)));
+        harness.step();
+    }
+    harness.event(Event::PointerButton {
+        pos: pos2(x + by, 600.0),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    });
+    settle(harness);
+}
+
+#[test]
+fn a_wider_side_bar_narrows_the_list_and_leaves_the_card_alone() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    harness.get_by_role_and_label(Role::Row, "Редактор").click();
+    settle(&mut harness);
+    let close = harness.get_by_role_and_label(Role::Button, "Закрити").rect();
+    let list = harness.get_by_role_and_label(Role::Row, "Редактор").rect();
+    let dividers: Vec<_> = harness
+        .get_all_by_role(Role::Splitter)
+        .map(|node| node.rect())
+        .collect();
+    assert_eq!(dividers.len(), 2);
+    drag_divider(&mut harness, dividers[0].center().x, 80.0);
+    let moved = harness
+        .get_all_by_role(Role::Splitter)
+        .map(|node| node.rect())
+        .collect::<Vec<_>>();
+    assert!(
+        (moved[0].center().x - dividers[0].center().x - 80.0).abs() < 2.0,
+        "the side bar follows the pointer"
+    );
+    assert_eq!(
+        moved[1].center().x,
+        dividers[1].center().x,
+        "the card keeps its width"
+    );
+    assert_eq!(
+        harness.get_by_role_and_label(Role::Button, "Закрити").rect(),
+        close
+    );
+    let narrower = harness.get_by_role_and_label(Role::Row, "Редактор").rect();
+    assert!(narrower.width() < list.width(), "the list gives the width");
+}
