@@ -1,6 +1,7 @@
 //! Builds the catalogue from every source. Runs on a background thread.
 
 pub mod appstream;
+mod catalog;
 pub mod desktop;
 pub mod docker;
 pub mod dpkg;
@@ -24,20 +25,11 @@ use crate::icons::IconIndex;
 use crate::model::{Evidence, Item, Launch, PackageSystem, Removal, Section, Source, Usage};
 use crate::plan::PackageDb;
 use appstream::Metainfo;
+pub use catalog::Catalog;
 use desktop::Launcher;
 use manual::manual_items;
 use package::Package;
 use sources::{cargo_items, flatpak_items, package_item, steam_items};
-
-#[derive(Clone, Debug, Default)]
-pub struct Catalog {
-    pub items: Vec<Item>,
-    pub db: PackageDb,
-    /// The package system of the distribution, `None` when there is none the catalogue reads.
-    pub system: Option<PackageSystem>,
-    /// The icons of sections and sources found in the icon themes, by name.
-    pub theme_icons: HashMap<&'static str, PathBuf>,
-}
 
 /// Looks up every name the side bar may ask for.
 fn theme_icons(icons: &IconIndex) -> HashMap<&'static str, PathBuf> {
