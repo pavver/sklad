@@ -1,7 +1,7 @@
 //! Turns an item into the command that removes it, and runs that command.
 
 use std::io::{BufRead, BufReader, Read};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
@@ -180,37 +180,43 @@ pub fn other_spec(removal: &Removal) -> Option<Spec> {
     match removal {
         Removal::Package(_) | Removal::Unavailable { .. } => None,
         Removal::Manager { argv, access, .. } => Some(manager_spec(argv, *access)),
-        // `--noninteractive` also forbids the polkit dialog flatpak would raise for a system
-        // installation, so that one runs through pkexec like any other command for root.
-        Removal::Flatpak { app_id, scope } => {
-            let (flag, access) = match scope {
-                FlatpakScope::System => ("--system", Access::Root),
-                FlatpakScope::User => ("--user", Access::User),
-            };
-            let argv = ["flatpak", "uninstall", "--noninteractive", flag, app_id].map(str::to_owned);
-            Some(manager_spec(&argv, access))
-        }
+        Removal::Flatpak { app_id, scope } => Some(flatpak_spec(app_id, *scope)),
         Removal::Steam { app_id } => Some(direct(&["xdg-open", &format!("steam://uninstall/{app_id}")])),
         Removal::Cargo { name } => Some(direct(&["cargo", "uninstall", name])),
         Removal::Docker { parts } => docker_spec(parts),
-        Removal::Files { paths, access } => {
-            if !paths.iter().all(|path| path_is_removable(path)) {
-                return None;
-            }
-            let names: Vec<String> = paths.iter().map(|path| path.display().to_string()).collect();
-            let head: &[&str] = match access {
-                Access::User => &["gio", "trash", "--"],
-                Access::Root => &["pkexec", "rm", "-rf", "--"],
-            };
-            let mut argv: Vec<String> = head.iter().map(|word| (*word).to_owned()).collect();
-            argv.extend(names.iter().cloned());
-            let shown = match access {
-                Access::User => format!("gio trash -- {}", quoted(&names)),
-                Access::Root => format!("sudo rm -rf -- {}", quoted(&names)),
-            };
-            Some(Spec { argv, shown })
-        }
+        Removal::Files { paths, access } => files_spec(paths, *access),
     }
+}
+
+/// `--noninteractive` also forbids the polkit dialog flatpak would raise for a system
+/// installation, so that one runs through pkexec like any other command for root.
+fn flatpak_spec(app_id: &str, scope: FlatpakScope) -> Spec {
+    let (flag, access) = match scope {
+        FlatpakScope::System => ("--system", Access::Root),
+        FlatpakScope::User => ("--user", Access::User),
+    };
+    let argv = ["flatpak", "uninstall", "--noninteractive", flag, app_id].map(str::to_owned);
+    manager_spec(&argv, access)
+}
+
+/// Files of the person go to the trash, system files away for good. `None` when a path is one
+/// refused above.
+fn files_spec(paths: &[PathBuf], access: Access) -> Option<Spec> {
+    if !paths.iter().all(|path| path_is_removable(path)) {
+        return None;
+    }
+    let names: Vec<String> = paths.iter().map(|path| path.display().to_string()).collect();
+    let (head, shown_head): (&[&str], &str) = match access {
+        Access::User => (&["gio", "trash", "--"], "gio trash --"),
+        Access::Root => (&["pkexec", "rm", "-rf", "--"], "sudo rm -rf --"),
+    };
+    let argv = head
+        .iter()
+        .map(|word| (*word).to_owned())
+        .chain(names.iter().cloned())
+        .collect();
+    let shown = format!("{shown_head} {}", quoted(&names));
+    Some(Spec { argv, shown })
 }
 
 /// The command a person could run by hand. `None` when other programs hold the package.
