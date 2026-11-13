@@ -54,6 +54,7 @@ imported!(
     MEMORY = "memory",
     MOVIE = "movie",
     OPEN_IN_NEW = "open_in_new",
+    PACKAGE_2 = "package_2",
     PALETTE = "palette",
     PLAY_ARROW = "play_arrow",
     PUBLIC = "public",

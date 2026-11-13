@@ -25,9 +25,9 @@ pub enum Action {
 /// How many neighbours are listed before the list is cut.
 const LINK_LIMIT: usize = 60;
 
-fn removal_note(item: &Item, text: &Text) -> &'static str {
-    match &item.removal {
-        Removal::Pacman => text.by_pacman,
+fn removal_note(item: &Item, text: &Text) -> String {
+    let note = match &item.removal {
+        Removal::Package(system) => return (text.by_package)(system.manager()),
         Removal::Flatpak { .. } => text.by_flatpak,
         Removal::Steam { .. } => text.by_steam,
         Removal::Cargo { .. } => text.by_cargo,
@@ -39,7 +39,8 @@ fn removal_note(item: &Item, text: &Text) -> &'static str {
         Removal::Files {
             access: Access::Root, ..
         } => text.files_for_good,
-    }
+    };
+    note.to_owned()
 }
 
 fn wrapped(ui: &mut Ui, content: impl Into<String>, kind: Type, colour: egui::Color32) {
@@ -163,7 +164,7 @@ fn facts(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
     if !item.groups.is_empty() {
         list.push(plain(text.key_groups, item.groups.join(", ")));
     }
-    list.push(plain(text.key_removal, removal_note(item, text).to_owned()));
+    list.push(plain(text.key_removal, removal_note(item, text)));
     property_list(ui, Id::unique(("facts", &item.id)), &list, palette);
 }
 

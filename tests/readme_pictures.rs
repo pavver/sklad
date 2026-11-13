@@ -28,7 +28,7 @@ const HARNESS_EDGE: u32 = 8;
 struct NoRemoval;
 
 impl Backend for NoRemoval {
-    fn preview(&self, names: &[String]) -> Result<Vec<String>, String> {
+    fn preview(&self, _system: PackageSystem, names: &[String]) -> Result<Vec<String>, String> {
         Ok(names.to_vec())
     }
 
@@ -166,16 +166,17 @@ fn entries() -> Vec<Entry> {
 }
 
 fn item_of(entry: Entry, lang: Lang) -> Item {
+    // The README has English and Ukrainian pictures only.
     let about = match lang {
-        Lang::En => entry.about_en,
         Lang::Uk => entry.about_uk,
+        _ => entry.about_en,
     };
     let removal = match entry.source {
         Source::Flatpak => Removal::Flatpak {
             app_id: entry.package.to_owned(),
             scope: sklad::model::FlatpakScope::User,
         },
-        _ => Removal::Pacman,
+        _ => Removal::Package(PackageSystem::Pacman),
     };
     Item {
         id: format!("pacman:{}", entry.package),

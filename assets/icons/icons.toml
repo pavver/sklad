@@ -25,6 +25,7 @@ layers = { material = "layers" }
 memory = { material = "memory" }
 movie = { material = "movie" }
 open_in_new = { material = "open_in_new" }
+package_2 = { material = "package_2" }
 palette = { material = "palette" }
 play_arrow = { material = "play_arrow" }
 public = { material = "public" }

@@ -119,6 +119,7 @@ fn source_icon(source: SourceKind) -> Icon {
         SourceKind::Steam => icon::SPORTS_ESPORTS,
         SourceKind::Cargo | SourceKind::Node | SourceKind::Python => icon::CODE,
         SourceKind::Rustup => icon::CONSTRUCTION,
+        SourceKind::LocalDeb => icon::PACKAGE_2,
         SourceKind::Manual => icon::FOLDER,
     }
 }

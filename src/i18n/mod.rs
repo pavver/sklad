@@ -189,7 +189,8 @@ pub struct Text {
     pub launch_failed: fn(&str) -> String,
     pub site: &'static str,
     pub copy: &'static str,
-    pub by_pacman: &'static str,
+    /// Names the package manager of the distribution.
+    pub by_package: fn(&str) -> String,
     pub by_steam: &'static str,
     pub by_language_manager: &'static str,
     pub by_flatpak: &'static str,
@@ -215,8 +216,9 @@ pub struct Text {
     pub last_launch: fn(&str, &str) -> String,
 
     pub confirm_title: fn(&str) -> String,
-    pub other_list_refused: &'static str,
-    pub pacman_refused: fn(&str) -> String,
+    pub other_list_refused: fn(&str) -> String,
+    /// The package manager, then what it said.
+    pub manager_refused: fn(&str, &str) -> String,
     pub path_too_close: &'static str,
     pub no_password: &'static str,
     pub needed_by_programs: fn(&str) -> String,
@@ -232,7 +234,7 @@ pub struct Text {
     pub files_go_to_bin: &'static str,
     pub files_go_for_good: &'static str,
     pub not_a_package: &'static str,
-    pub checking: &'static str,
+    pub checking: fn(&str) -> String,
     pub removing: &'static str,
     pub done: &'static str,
     pub failed: fn(&str) -> String,

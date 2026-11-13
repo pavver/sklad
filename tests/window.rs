@@ -55,7 +55,7 @@ impl FakeBackend {
 }
 
 impl Backend for FakeBackend {
-    fn preview(&self, names: &[String]) -> Result<Vec<String>, String> {
+    fn preview(&self, _system: PackageSystem, names: &[String]) -> Result<Vec<String>, String> {
         let forced = self.preview.lock().ok().and_then(|preview| preview.clone());
         forced.unwrap_or_else(|| Ok(names.to_vec()))
     }
@@ -94,7 +94,7 @@ fn item(package: &str, title: &str, section: Section, usage: Usage) -> Item {
         groups: Vec::new(),
         depends: Vec::new(),
         required_by: Vec::new(),
-        removal: Removal::Pacman,
+        removal: Removal::Package(PackageSystem::Pacman),
         warning: None,
         haystack: String::new(),
     }
@@ -643,8 +643,8 @@ fn search_narrows_the_list() {
 struct ReadOnlyBackend;
 
 impl Backend for ReadOnlyBackend {
-    fn preview(&self, names: &[String]) -> Result<Vec<String>, String> {
-        sklad::remove::SystemBackend.preview(names)
+    fn preview(&self, system: PackageSystem, names: &[String]) -> Result<Vec<String>, String> {
+        sklad::remove::SystemBackend.preview(system, names)
     }
 
     fn run(&self, _spec: &Spec) -> Receiver<Event> {

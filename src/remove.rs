@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
-use crate::model::{Access, FlatpakScope, Item, Removal};
-use crate::plan::{Mode, PackageDb, PacmanPlan};
+use crate::model::{Access, FlatpakScope, Item, PackageSystem, Removal};
+use crate::plan::{Mode, PackageDb, Plan};
 
 /// A command in two forms: what is executed and what is shown to the person.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -35,9 +35,17 @@ fn direct(argv: &[&str]) -> Spec {
     Spec { argv, shown }
 }
 
-/// The removal of a pacman plan. `--noconfirm` is safe here only because the list passed by name
-/// is the list the person saw: pacman refuses it if anything else would have to change.
-pub fn pacman_spec(plan: &PacmanPlan) -> Spec {
+/// The removal of a plan by the package manager of the system.
+pub fn package_spec(plan: &Plan, system: PackageSystem) -> Spec {
+    match system {
+        PackageSystem::Pacman => pacman_spec(plan),
+        PackageSystem::Dpkg => apt_spec(plan),
+    }
+}
+
+/// `--noconfirm` is safe here only because the list passed by name is the list the person saw:
+/// pacman refuses it if anything else would have to change.
+fn pacman_spec(plan: &Plan) -> Spec {
     let remove = quoted(&plan.remove);
     let mark = quoted(&plan.keep);
     let script = if plan.keep.is_empty() {
@@ -56,6 +64,50 @@ pub fn pacman_spec(plan: &PacmanPlan) -> Spec {
             .to_vec(),
         shown,
     }
+}
+
+/// apt removes exactly the packages named, since the plan already holds everything that needs
+/// them; `-y` stays safe because the same list was simulated first, and apt still refuses an
+/// essential package without a flag nobody passes. Configuration files stay, as with
+/// `apt-get remove` by hand.
+fn apt_spec(plan: &Plan) -> Spec {
+    let remove = quoted(&plan.remove);
+    let mark = quoted(&plan.keep);
+    let apt = format!("DEBIAN_FRONTEND=noninteractive apt-get remove -y {remove}");
+    let script = if plan.keep.is_empty() {
+        apt
+    } else {
+        format!("apt-mark manual {mark} && {apt}")
+    };
+    let shown = if plan.keep.is_empty() {
+        format!("sudo apt-get remove {remove}")
+    } else {
+        format!("sudo apt-mark manual {mark} && sudo apt-get remove {remove}")
+    };
+    Spec {
+        argv: ["pkexec", "/usr/bin/sh", "-c", script.as_str()]
+            .map(str::to_owned)
+            .to_vec(),
+        shown,
+    }
+}
+
+/// The packages `apt-get -s remove` would remove, from its `Remv` lines. A package it would
+/// install instead comes back marked with `+`, so the list can never match a plan.
+pub fn parse_apt_simulation(output: &str) -> Vec<String> {
+    let mut list: Vec<String> = output
+        .lines()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            match (words.next(), words.next()) {
+                (Some("Remv"), Some(name)) => Some(name.to_owned()),
+                (Some("Inst"), Some(name)) => Some(format!("+{name}")),
+                _ => None,
+            }
+        })
+        .collect();
+    list.sort();
+    list
 }
 
 /// Refuses a path too close to the root to be a thing somebody installed.
@@ -88,7 +140,7 @@ fn manager_spec(argv: &[String], access: Access) -> Spec {
 /// The command for anything but pacman. `None` for a pacman item or a path refused above.
 pub fn other_spec(removal: &Removal) -> Option<Spec> {
     match removal {
-        Removal::Pacman | Removal::Unavailable { .. } => None,
+        Removal::Package(_) | Removal::Unavailable { .. } => None,
         Removal::Manager { argv, access, .. } => Some(manager_spec(argv, *access)),
         // `--noninteractive` also forbids the polkit dialog flatpak would raise for a system
         // installation, so that one runs through pkexec like any other command for root.
@@ -125,11 +177,11 @@ pub fn other_spec(removal: &Removal) -> Option<Spec> {
 /// The command a person could run by hand. `None` when other programs hold the package.
 pub fn command_line(item: &Item, db: &PackageDb) -> Option<String> {
     match &item.removal {
-        Removal::Pacman => {
+        Removal::Package(system) => {
             let plan = db
                 .plan(&item.package, Mode::Keep)
                 .filter(|plan| !plan.is_blocked())?;
-            Some(pacman_spec(&plan).shown)
+            Some(package_spec(&plan, *system).shown)
         }
         other => other_spec(other).map(|spec| spec.shown),
     }
@@ -181,8 +233,8 @@ fn outcome_of(code: Option<i32>, program: &str) -> Outcome {
 
 /// What the interface needs from the system. Tests replace it, so no test touches a real package.
 pub trait Backend: Send + Sync {
-    /// The list pacman itself would remove for these names, or its refusal.
-    fn preview(&self, names: &[String]) -> Result<Vec<String>, String>;
+    /// The sorted list the package manager itself would remove for these names, or its refusal.
+    fn preview(&self, system: PackageSystem, names: &[String]) -> Result<Vec<String>, String>;
     fn run(&self, spec: &Spec) -> Receiver<Event>;
 }
 
@@ -239,19 +291,35 @@ pub fn run_streaming(spec: &Spec) -> Receiver<Event> {
 }
 
 impl Backend for SystemBackend {
-    /// `--print` changes nothing and needs no privileges.
-    fn preview(&self, names: &[String]) -> Result<Vec<String>, String> {
-        let output = Command::new("pacman")
-            .args(["-Rp", "--print-format", "%n"])
+    /// `pacman --print` and `apt-get -s` change nothing and need no privileges.
+    fn preview(&self, system: PackageSystem, names: &[String]) -> Result<Vec<String>, String> {
+        let mut command = match system {
+            PackageSystem::Pacman => {
+                let mut command = Command::new("pacman");
+                command.args(["-Rp", "--print-format", "%n"]);
+                command
+            }
+            PackageSystem::Dpkg => {
+                let mut command = Command::new("apt-get");
+                command.args(["-s", "remove"]);
+                command
+            }
+        };
+        let output = command
             .args(names)
             .env("LC_ALL", "C")
             .output()
             .map_err(|error| error.to_string())?;
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout);
-            let mut list: Vec<String> = text.lines().map(str::to_owned).collect();
-            list.sort();
-            Ok(list)
+            Ok(match system {
+                PackageSystem::Pacman => {
+                    let mut list: Vec<String> = text.lines().map(str::to_owned).collect();
+                    list.sort();
+                    list
+                }
+                PackageSystem::Dpkg => parse_apt_simulation(&text),
+            })
         } else {
             let text = String::from_utf8_lossy(&output.stderr);
             Err(text.trim().to_owned())
@@ -274,9 +342,9 @@ mod tests {
 
     #[test]
     fn the_plain_removal_is_one_privileged_command() {
-        let plan = PacmanPlan {
+        let plan = Plan {
             remove: words(&["app", "lib"]),
-            ..PacmanPlan::default()
+            ..Plan::default()
         };
         let spec = pacman_spec(&plan);
         assert_eq!(spec.argv[0], "pkexec");
@@ -286,10 +354,10 @@ mod tests {
 
     #[test]
     fn the_siblings_are_marked_before_anything_is_removed() {
-        let plan = PacmanPlan {
+        let plan = Plan {
             remove: words(&["app", "bundle-meta"]),
             keep: words(&["other"]),
-            ..PacmanPlan::default()
+            ..Plan::default()
         };
         assert_eq!(
             pacman_spec(&plan).argv[3],
@@ -299,11 +367,41 @@ mod tests {
 
     #[test]
     fn a_name_cannot_smuggle_a_command_into_the_script() {
-        let plan = PacmanPlan {
+        let plan = Plan {
             remove: words(&["a; rm -rf /"]),
-            ..PacmanPlan::default()
+            ..Plan::default()
         };
         assert!(pacman_spec(&plan).argv[3].ends_with("'a; rm -rf /'"));
+    }
+
+    #[test]
+    fn apt_marks_the_siblings_and_removes_exactly_the_plan() {
+        let plan = Plan {
+            remove: words(&["gimp", "gimp-meta"]),
+            keep: words(&["inkscape"]),
+            ..Plan::default()
+        };
+        let spec = package_spec(&plan, PackageSystem::Dpkg);
+        assert_eq!(spec.argv[0], "pkexec");
+        assert_eq!(
+            spec.argv[3],
+            "apt-mark manual inkscape && DEBIAN_FRONTEND=noninteractive apt-get remove -y gimp gimp-meta"
+        );
+        assert_eq!(
+            spec.shown,
+            "sudo apt-mark manual inkscape && sudo apt-get remove gimp gimp-meta"
+        );
+    }
+
+    #[test]
+    fn the_apt_simulation_names_what_goes_and_marks_what_would_come() {
+        let output = "NOTE: This is only a simulation!\nReading package lists...\n\
+            Remv gimp [2.10.34-1]\nRemv libgimp2.0:i386 [2.10.34-1]\nInst gawk (1:5.2.1-2 Debian:12/stable)\n\
+            Conf gawk (1:5.2.1-2 Debian:12/stable)\n";
+        assert_eq!(
+            parse_apt_simulation(output),
+            words(&["+gawk", "gimp", "libgimp2.0:i386"])
+        );
     }
 
     #[test]

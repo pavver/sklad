@@ -3,7 +3,7 @@
 use std::process::Command;
 
 use sklad::i18n::Lang;
-use sklad::model::{Reason, Removal, SourceKind, Usage};
+use sklad::model::{PackageSystem, Reason, Removal, SourceKind, Usage};
 use sklad::plan::Mode;
 use sklad::scan::{self, Places};
 
@@ -34,7 +34,7 @@ fn the_plan_agrees_with_pacman_on_every_package() {
     for item in catalog
         .items
         .iter()
-        .filter(|item| item.removal == Removal::Pacman)
+        .filter(|item| item.removal == Removal::Package(PackageSystem::Pacman))
     {
         let Some(plan) = catalog.db.plan(&item.package, Mode::Keep) else {
             differences.push(format!("{}: no plan", item.package));
@@ -72,6 +72,85 @@ fn the_plan_agrees_with_pacman_on_every_package() {
     assert!(differences.is_empty());
 }
 
+fn apt_simulation(args: &[&str]) -> Result<Vec<String>, String> {
+    let output = Command::new("apt-get")
+        .arg("-s")
+        .args(args)
+        .env("LC_ALL", "C")
+        .output()
+        .map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).into_owned());
+    }
+    Ok(sklad::remove::parse_apt_simulation(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
+/// On Debian and Ubuntu the planner must agree with apt. apt removes what needs the target, so
+/// the plan that takes the dependents along is compared, and packages apt would autoremove
+/// anyway are left out of its answer.
+#[test]
+#[ignore = "reads the live system"]
+fn the_plan_agrees_with_apt_on_every_package() -> Result<(), String> {
+    let catalog = scan::run(&Places::system(), Lang::En);
+    if catalog.system != Some(PackageSystem::Dpkg) {
+        println!("not a dpkg system");
+        return Ok(());
+    }
+    let already = apt_simulation(&["autoremove"])?;
+    let mut same = 0;
+    let mut metas = 0;
+    let mut essential = 0;
+    let mut installs = 0;
+    let mut differences = Vec::new();
+    for item in catalog
+        .items
+        .iter()
+        .filter(|item| item.removal == Removal::Package(PackageSystem::Dpkg))
+    {
+        let Some(plan) = catalog.db.plan(&item.package, Mode::WithDependents) else {
+            differences.push(format!("{}: no plan", item.package));
+            continue;
+        };
+        if !plan.keep.is_empty() {
+            metas += 1;
+            continue;
+        }
+        match apt_simulation(&["remove", "--auto-remove", &item.package]) {
+            // apt would install another package to keep the dependents; the check before the
+            // removal sees the other list and stops.
+            Ok(list) if list.iter().any(|name| name.starts_with('+')) => installs += 1,
+            Ok(list) => {
+                let list: Vec<String> = list
+                    .into_iter()
+                    .filter(|name| !already.contains(name) || plan.remove.contains(name))
+                    .collect();
+                if list == plan.remove {
+                    same += 1;
+                } else {
+                    let extra: Vec<_> = plan.remove.iter().filter(|n| !list.contains(n)).collect();
+                    let missing: Vec<_> = list.iter().filter(|n| !plan.remove.contains(n)).collect();
+                    differences.push(format!("{}: ours+ {extra:?} apt+ {missing:?}", item.package));
+                }
+            }
+            // apt refuses to take an essential package away; the plan warns about the same ones.
+            Err(_) if !plan.critical.is_empty() => essential += 1,
+            Err(error) => differences.push(format!("{}: apt refuses: {}", item.package, error.trim())),
+        }
+    }
+    println!(
+        "agree {same}, through a metapackage {metas}, refused as essential {essential}, \
+         apt installs instead {installs}, differ {}",
+        differences.len()
+    );
+    for line in differences.iter().take(60) {
+        println!("  {line}");
+    }
+    assert!(differences.is_empty());
+    Ok(())
+}
+
 /// The list passed by name, as the real removal does, is accepted by pacman as it stands.
 #[test]
 #[ignore = "reads the live system"]
@@ -82,7 +161,7 @@ fn plans_through_a_metapackage_are_accepted_by_pacman() {
     for item in catalog
         .items
         .iter()
-        .filter(|item| item.removal == Removal::Pacman)
+        .filter(|item| item.removal == Removal::Package(PackageSystem::Pacman))
     {
         let Some(plan) = catalog.db.plan(&item.package, Mode::Keep) else {
             continue;

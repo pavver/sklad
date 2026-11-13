@@ -48,6 +48,7 @@ fn source(kind: SourceKind) -> &'static str {
         SourceKind::Node => "Node.js",
         SourceKind::Python => "Python",
         SourceKind::Rustup => "Rustup",
+        SourceKind::LocalDeb => "Локальні пакети",
         SourceKind::Manual => "Поза менеджерами",
     }
 }
@@ -120,7 +121,7 @@ pub static TEXT: Text = Text {
     launch_failed: |title| format!("Не вдалося запустити «{title}»"),
     site: "Сайт",
     copy: "Скопіювати",
-    by_pacman: "Через менеджер пакетів pacman",
+    by_package: |manager| format!("Через менеджер пакетів {manager}"),
     by_steam: "Через клієнт Steam",
     by_language_manager: "Через менеджер пакетів своєї мови",
     by_flatpak: "Через Flatpak",
@@ -146,8 +147,12 @@ pub static TEXT: Text = Text {
     last_launch: |when, source| format!("{when}, за даними: {source}"),
 
     confirm_title: |title| format!("Видалити «{title}»?"),
-    other_list_refused: "pacman видалив би інший список пакетів, тому дію зупинено. Оновіть каталог і спробуйте ще раз.",
-    pacman_refused: |message| format!("pacman відмовив:\n{message}"),
+    other_list_refused: |manager| {
+        format!(
+            "{manager} видалив би інший список пакетів, тому дію зупинено. Оновіть каталог і спробуйте ще раз."
+        )
+    },
+    manager_refused: |manager, message| format!("{manager} відмовив:\n{message}"),
     path_too_close: "Цей шлях надто близько до кореня системи, тому видалення заборонено.",
     no_password: "Пароль не введено, нічого не змінено.",
     needed_by_programs: |names| format!("Цей пакет потрібен програмам: {names}"),
@@ -172,7 +177,7 @@ pub static TEXT: Text = Text {
     files_go_to_bin: "Файли буде переміщено в кошик:",
     files_go_for_good: "Файли буде видалено безповоротно:",
     not_a_package: "Це не пакет: повернути файли можна буде лише зі знімка або резервної копії.",
-    checking: "Перевіряю разом із pacman…",
+    checking: |manager| format!("Перевіряю разом із {manager}…"),
     removing: "Видаляю…",
     done: "Готово",
     failed: |message| format!("Не вдалося видалити: {message}. Подивіться вивід вище."),

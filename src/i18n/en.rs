@@ -38,6 +38,7 @@ fn source(kind: SourceKind) -> &'static str {
         SourceKind::Node => "Node.js",
         SourceKind::Python => "Python",
         SourceKind::Rustup => "Rustup",
+        SourceKind::LocalDeb => "Local packages",
         SourceKind::Manual => "Outside managers",
     }
 }
@@ -109,7 +110,7 @@ pub static TEXT: Text = Text {
     launch_failed: |title| format!("Could not launch \"{title}\""),
     site: "Website",
     copy: "Copy",
-    by_pacman: "Through the pacman package manager",
+    by_package: |manager| format!("Through the {manager} package manager"),
     by_steam: "Through the Steam client",
     by_language_manager: "Through the package manager of its language",
     by_flatpak: "Through Flatpak",
@@ -135,8 +136,12 @@ pub static TEXT: Text = Text {
     last_launch: |when, source| format!("{when}, according to {source}"),
 
     confirm_title: |title| format!("Remove \"{title}\"?"),
-    other_list_refused: "pacman would remove a different list of packages, so nothing was done. Refresh the catalogue and try again.",
-    pacman_refused: |message| format!("pacman refused:\n{message}"),
+    other_list_refused: |manager| {
+        format!(
+            "{manager} would remove a different list of packages, so nothing was done. Refresh the catalogue and try again."
+        )
+    },
+    manager_refused: |manager, message| format!("{manager} refused:\n{message}"),
     path_too_close: "This path is too close to the root of the system, so removal is forbidden.",
     no_password: "No password was entered, nothing was changed.",
     needed_by_programs: |names| format!("These programs need this package: {names}"),
@@ -161,7 +166,7 @@ pub static TEXT: Text = Text {
     files_go_to_bin: "The files will be moved to the bin:",
     files_go_for_good: "The files will be deleted for good:",
     not_a_package: "This is not a package: the files can only be restored from a snapshot or a backup.",
-    checking: "Checking with pacman…",
+    checking: |manager| format!("Checking with {manager}…"),
     removing: "Removing…",
     done: "Done",
     failed: |message| format!("Could not remove: {message}. See the output above."),

@@ -216,7 +216,7 @@ mod tests {
             groups: Vec::new(),
             depends: Vec::new(),
             required_by: Vec::new(),
-            removal: Removal::Pacman,
+            removal: Removal::Package(PackageSystem::Pacman),
             warning: None,
             haystack: String::new(),
         }

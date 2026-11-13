@@ -45,7 +45,7 @@ pub enum Mode {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct PacmanPlan {
+pub struct Plan {
     /// The exact list handed to pacman, sorted.
     pub remove: Vec<String>,
     /// Metapackages that go in order to free the target.
@@ -59,7 +59,7 @@ pub struct PacmanPlan {
     pub freed: u64,
 }
 
-impl PacmanPlan {
+impl Plan {
     pub fn is_blocked(&self) -> bool {
         !self.blockers.is_empty()
     }
@@ -200,7 +200,7 @@ impl PackageDb {
         names
     }
 
-    pub fn plan(&self, target: &str, mode: Mode) -> Option<PacmanPlan> {
+    pub fn plan(&self, target: &str, mode: Mode) -> Option<Plan> {
         let &start = self.by_name.get(target)?;
         let mut gone = HashSet::from([start]);
         let mut metas = BTreeSet::new();
@@ -242,7 +242,7 @@ impl PackageDb {
             .collect();
         let mut keep_names: Vec<String> = keep.iter().map(|&i| self.nodes[i].name.clone()).collect();
         keep_names.sort();
-        Some(PacmanPlan {
+        Some(Plan {
             freed: gone.iter().map(|&i| self.nodes[i].size).sum(),
             metas: metas.iter().map(|&i| self.nodes[i].name.clone()).collect(),
             keep: keep_names,
@@ -278,7 +278,9 @@ impl PackageDb {
             let node = &self.nodes[current];
             for dep in node.depends.iter().chain(&node.recommends) {
                 for &provider in self.providers_of(dep) {
-                    let pulled_in = self.nodes[provider].reason == Reason::Dependency;
+                    // apt never autoremoves an essential or required package.
+                    let pulled_in =
+                        self.nodes[provider].reason == Reason::Dependency && !self.nodes[provider].critical;
                     if pulled_in
                         && !gone.contains(&provider)
                         && !keep.contains(&provider)
@@ -578,6 +580,17 @@ mod tests {
         assert_eq!(
             db.plan("tar", Mode::Keep).map(|p| p.critical),
             Some(names(&["tar"]))
+        );
+    }
+
+    #[test]
+    fn an_essential_dependency_stays_when_its_user_goes() {
+        let mut tzdata = node("tzdata", &[], Reason::Dependency);
+        tzdata.critical = true;
+        let db = PackageDb::new(vec![node("python", &["tzdata"], Reason::Explicit), tzdata]);
+        assert_eq!(
+            db.plan("python", Mode::Keep).map(|p| p.remove),
+            Some(names(&["python"]))
         );
     }
 }

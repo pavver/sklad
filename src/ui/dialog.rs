@@ -17,8 +17,8 @@ use super::operator::state::{Activity, Outcome};
 use super::operator::tokens::{Palette, Type, dim, du, text};
 use crate::i18n::Text;
 use crate::model::{Access, Item, Removal, Usage};
-use crate::plan::{Mode, PacmanPlan};
-use crate::remove::{Backend, Event, Outcome as RunOutcome, Spec, is_irreversible, other_spec, pacman_spec};
+use crate::plan::{Mode, Plan};
+use crate::remove::{Backend, Event, Outcome as RunOutcome, Spec, is_irreversible, other_spec, package_spec};
 use crate::scan::Catalog;
 
 type Preview = Result<Vec<String>, String>;
@@ -45,7 +45,7 @@ pub struct Dialog {
     backend: Arc<dyn Backend>,
     text: &'static Text,
     mode: Mode,
-    plan: Option<PacmanPlan>,
+    plan: Option<Plan>,
     phase: Phase,
     confirmed_risk: bool,
     /// Why the last attempt did not remove anything.
@@ -88,12 +88,12 @@ impl Dialog {
 
     fn prepare(&mut self) {
         self.confirmed_risk = false;
-        if self.item.removal != Removal::Pacman {
+        let Removal::Package(system) = self.item.removal else {
             let spec = other_spec(&self.item.removal);
             let refusal = spec.is_none().then(|| self.text.path_too_close.to_owned());
             self.phase = Phase::Ready { spec, refusal };
             return;
-        }
+        };
         self.plan = self.catalog.db.plan(&self.item.package, self.mode);
         let Some(plan) = self.plan.as_ref().filter(|plan| !plan.is_blocked()) else {
             self.phase = Phase::Ready {
@@ -106,14 +106,15 @@ impl Dialog {
         let backend = Arc::clone(&self.backend);
         let names = plan.remove.clone();
         thread::spawn(move || {
-            let _ = sender.send(backend.preview(&names));
+            let _ = sender.send(backend.preview(system, &names));
         });
         self.phase = Phase::Checking(receiver);
     }
 
-    /// Pacman must return the same list: any difference means the plan is not what would happen.
+    /// The package manager must return the same list: any difference means the plan is not what
+    /// would happen.
     fn review(&self, answer: Preview) -> Phase {
-        let Some(plan) = &self.plan else {
+        let (Some(plan), Removal::Package(system)) = (&self.plan, &self.item.removal) else {
             return Phase::Ready {
                 spec: None,
                 refusal: None,
@@ -121,16 +122,16 @@ impl Dialog {
         };
         match answer {
             Ok(list) if list == plan.remove => Phase::Ready {
-                spec: Some(pacman_spec(plan)),
+                spec: Some(package_spec(plan, *system)),
                 refusal: None,
             },
             Ok(_) => Phase::Ready {
                 spec: None,
-                refusal: Some(self.text.other_list_refused.to_owned()),
+                refusal: Some((self.text.other_list_refused)(system.manager())),
             },
             Err(message) => Phase::Ready {
                 spec: None,
-                refusal: Some((self.text.pacman_refused)(&message)),
+                refusal: Some((self.text.manager_refused)(system.manager(), &message)),
             },
         }
     }
@@ -249,7 +250,7 @@ impl Dialog {
 
     fn other_section(&self, ui: &mut Ui, palette: &Palette) {
         let content = match &self.item.removal {
-            Removal::Pacman | Removal::Unavailable { .. } => return,
+            Removal::Package(_) | Removal::Unavailable { .. } => return,
             Removal::Manager { name, .. } => (self.text.through_manager)(name),
             Removal::Flatpak { .. } => self.text.flatpak_note.to_owned(),
             Removal::Steam { .. } => self.text.steam_note.to_owned(),
@@ -287,7 +288,15 @@ impl Dialog {
                 let (bar, _) =
                     ui.allocate_exact_size(vec2(ui.available_width(), du(dim::PAD_TIGHT)), Sense::hover());
                 paint_indeterminate(ui, bar, palette);
-                ui.label(text(self.text.checking, Type::Caption, palette.text_secondary));
+                let manager = match self.item.removal {
+                    Removal::Package(system) => system.manager(),
+                    _ => "",
+                };
+                ui.label(text(
+                    (self.text.checking)(manager),
+                    Type::Caption,
+                    palette.text_secondary,
+                ));
             }
             Phase::Ready {
                 refusal: Some(reason),

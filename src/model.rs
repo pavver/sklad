@@ -13,6 +13,8 @@ pub enum Source {
     Node,
     Python,
     Rustup,
+    /// A Debian package installed from a file, which no repository has.
+    LocalDeb,
     Manual,
 }
 
@@ -23,6 +25,16 @@ pub enum PackageSystem {
     Pacman,
     /// Debian, Ubuntu and the distributions based on them.
     Dpkg,
+}
+
+impl PackageSystem {
+    /// The tool that installs and removes packages, as the person knows it.
+    pub fn manager(self) -> &'static str {
+        match self {
+            PackageSystem::Pacman => "pacman",
+            PackageSystem::Dpkg => "apt",
+        }
+    }
 }
 
 /// `Source` without its payload, for the filter in the side bar.
@@ -36,6 +48,7 @@ pub enum SourceKind {
     Node,
     Python,
     Rustup,
+    LocalDeb,
     Manual,
 }
 
@@ -50,13 +63,14 @@ impl Source {
             Source::Node => SourceKind::Node,
             Source::Python => SourceKind::Python,
             Source::Rustup => SourceKind::Rustup,
+            Source::LocalDeb => SourceKind::LocalDeb,
             Source::Manual => SourceKind::Manual,
         }
     }
 }
 
 impl SourceKind {
-    pub const ALL: [SourceKind; 9] = [
+    pub const ALL: [SourceKind; 10] = [
         SourceKind::Repo,
         SourceKind::Aur,
         SourceKind::Flatpak,
@@ -65,15 +79,18 @@ impl SourceKind {
         SourceKind::Node,
         SourceKind::Python,
         SourceKind::Rustup,
+        SourceKind::LocalDeb,
         SourceKind::Manual,
     ];
 
     /// Whether the source can exist on a system built on `system`: the repositories need a package
-    /// system of the distribution, the AUR needs pacman, and the rest work anywhere.
+    /// system of the distribution, the AUR needs pacman, local Debian packages need dpkg, and the
+    /// rest work anywhere.
     pub fn fits(self, system: Option<PackageSystem>) -> bool {
         match self {
             SourceKind::Repo => system.is_some(),
             SourceKind::Aur => system == Some(PackageSystem::Pacman),
+            SourceKind::LocalDeb => system == Some(PackageSystem::Dpkg),
             _ => true,
         }
     }
@@ -182,10 +199,11 @@ pub enum Launch {
     Steam { app_id: String },
 }
 
-/// How the item leaves the system. Pacman items are planned against the package graph.
+/// How the item leaves the system. Packages of the distribution are planned against the package
+/// graph and removed by its package manager.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Removal {
-    Pacman,
+    Package(PackageSystem),
     Flatpak {
         app_id: String,
         scope: FlatpakScope,

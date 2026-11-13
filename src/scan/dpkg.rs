@@ -5,6 +5,8 @@
 //! * `/var/lib/dpkg/info/<name>.list`, or `<name>:<arch>.list` for co-installable packages,
 //!   lists the files of a package; its time of change is when the package was installed.
 //! * `apt list --installed` names the suite each package came from, and `local` when none has it.
+//! * `apt-cache show` gives the priority the archive sets. apt keeps a required package and
+//!   reads its priority from the archive, which may differ from the one in the status file.
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -94,7 +96,41 @@ pub struct Record {
     pub package: Package,
 }
 
-pub fn parse_status(text: &str, auto: &HashSet<String>) -> Vec<Record> {
+/// The priority of each package in `apt-cache show` output, by `name:arch` and by `name`.
+pub fn parse_priorities(show: &str) -> HashMap<String, String> {
+    let mut priorities = HashMap::new();
+    for fields in paragraphs(show) {
+        let (Some(name), Some(priority)) = (fields.get("Package"), fields.get("Priority")) else {
+            continue;
+        };
+        if let Some(arch) = fields.get("Architecture") {
+            priorities
+                .entry(format!("{name}:{arch}"))
+                .or_insert_with(|| priority.clone());
+        }
+        priorities.entry(name.clone()).or_insert_with(|| priority.clone());
+    }
+    priorities
+}
+
+/// The packages apt marked as installed for a dependency, as apt names them.
+fn auto_installed(text: &str) -> Vec<String> {
+    paragraphs(text)
+        .into_iter()
+        .filter(|fields| fields.get("Auto-Installed").map(String::as_str) == Some("1"))
+        .filter_map(|fields| {
+            let name = fields.get("Package")?;
+            Some(match fields.get("Architecture") {
+                Some(arch) => format!("{name}:{arch}"),
+                None => name.clone(),
+            })
+        })
+        .collect()
+}
+
+/// Reads the status file. `archive` holds the priorities from the archive, which win over the
+/// ones in the status file.
+pub fn parse_status(text: &str, auto: &HashSet<String>, archive: &HashMap<String, String>) -> Vec<Record> {
     let mut records: Vec<Record> = paragraphs(text)
         .into_iter()
         .filter(|fields| {
@@ -109,7 +145,13 @@ pub fn parse_status(text: &str, auto: &HashSet<String>) -> Vec<Record> {
             let mut depends = relations(&get("Pre-Depends"));
             depends.extend(relations(&get("Depends")));
             let (summary, long) = description(&get("Description"));
-            let pulled_in = auto.contains(&name) || auto.contains(&format!("{name}:{arch}"));
+            let qualified = format!("{name}:{arch}");
+            let pulled_in = auto.contains(&name) || auto.contains(&qualified);
+            let priority = archive
+                .get(&qualified)
+                .or_else(|| archive.get(&name))
+                .cloned()
+                .unwrap_or_else(|| get("Priority"));
             let package = Package {
                 name: name.clone(),
                 version: get("Version"),
@@ -129,7 +171,7 @@ pub fn parse_status(text: &str, auto: &HashSet<String>) -> Vec<Record> {
                 } else {
                     Reason::Explicit
                 },
-                essential: get("Essential") == "yes" || get("Priority") == "required",
+                essential: get("Essential") == "yes" || get("Protected") == "yes" || priority == "required",
                 files: Files::default(),
             };
             Some(Record {
@@ -140,14 +182,17 @@ pub fn parse_status(text: &str, auto: &HashSet<String>) -> Vec<Record> {
             })
         })
         .collect();
-    // A package installed for two architectures is told apart by its architecture, and still
-    // satisfies dependencies by its plain name.
-    let mut seen: HashMap<String, usize> = HashMap::new();
-    for record in &records {
-        *seen.entry(record.name.clone()).or_default() += 1;
-    }
+    // A package of a foreign architecture is named with it, as apt names it, and still
+    // satisfies dependencies by its plain name. dpkg itself always has the native one.
+    let native = records
+        .iter()
+        .find(|record| record.name == "dpkg")
+        .map(|record| record.arch.clone());
     for record in &mut records {
-        if seen.get(&record.name).is_some_and(|&count| count > 1) {
+        let foreign = record.arch != "all"
+            && !record.arch.is_empty()
+            && native.as_ref().is_some_and(|native| *native != record.arch);
+        if foreign {
             record.package.name = format!("{}:{}", record.name, record.arch);
             record.package.provides.push(record.name.clone());
         }
@@ -157,17 +202,8 @@ pub fn parse_status(text: &str, auto: &HashSet<String>) -> Vec<Record> {
 
 /// Packages apt installed as dependencies, as `name` and `name:arch`.
 pub fn parse_extended_states(text: &str) -> HashSet<String> {
-    paragraphs(text)
+    auto_installed(text)
         .into_iter()
-        .filter(|fields| fields.get("Auto-Installed").map(String::as_str) == Some("1"))
-        .filter_map(|fields| {
-            let name = fields.get("Package")?;
-            let arch = fields.get("Architecture");
-            Some(match arch {
-                Some(arch) => format!("{name}:{arch}"),
-                None => name.clone(),
-            })
-        })
         .flat_map(|key| {
             let plain = key.split(':').next().unwrap_or_default().to_owned();
             [key, plain]
@@ -234,6 +270,15 @@ pub fn parse_origins(listing: &str) -> HashMap<String, Option<String>> {
         .collect()
 }
 
+/// The suite of every package some repository has; local packages are left out, so they read
+/// as local.
+pub fn repositories(listing: &str) -> HashMap<String, String> {
+    parse_origins(listing)
+        .into_iter()
+        .filter_map(|(name, suite)| Some((name, suite?)))
+        .collect()
+}
+
 /// The time of change of a file, in Unix seconds.
 fn changed_at(path: &Path) -> Option<i64> {
     let modified = fs::metadata(path).ok()?.modified().ok()?;
@@ -241,13 +286,27 @@ fn changed_at(path: &Path) -> Option<i64> {
     i64::try_from(seconds).ok()
 }
 
-pub fn read_all(status: &Path, extended_states: &Path, running: &HashSet<String>) -> Vec<Package> {
+/// Reads every installed package. `show` runs `apt-cache show` on the names it is given; only
+/// the priorities of packages apt may take away as unneeded matter, so only those are asked.
+pub fn read_all(
+    status: &Path,
+    extended_states: &Path,
+    running: &HashSet<String>,
+    show: impl FnOnce(&[String]) -> String,
+) -> Vec<Package> {
     let Ok(text) = fs::read_to_string(status) else {
         return Vec::new();
     };
-    let auto = parse_extended_states(&fs::read_to_string(extended_states).unwrap_or_default());
+    let states = fs::read_to_string(extended_states).unwrap_or_default();
+    let auto = parse_extended_states(&states);
+    let pulled_in = auto_installed(&states);
+    let archive = if pulled_in.is_empty() {
+        HashMap::new()
+    } else {
+        parse_priorities(&show(&pulled_in))
+    };
     let info = status.with_file_name("info");
-    parse_status(&text, &auto)
+    parse_status(&text, &auto, &archive)
         .into_iter()
         .map(|record| {
             let qualified = info.join(format!("{}:{}.list", record.name, record.arch));
@@ -298,6 +357,10 @@ Package: oldtool
 Status: deinstall ok config-files
 Architecture: amd64
 
+Package: dpkg
+Status: install ok installed
+Architecture: amd64
+
 Package: libc6
 Status: install ok installed
 Multi-Arch: same
@@ -312,9 +375,9 @@ Architecture: i386
     #[test]
     fn installed_packages_are_read_with_their_relations() -> Result<(), String> {
         let auto = parse_extended_states("Package: libc6\nArchitecture: amd64\nAuto-Installed: 1\n");
-        let records = parse_status(STATUS, &auto);
+        let records = parse_status(STATUS, &auto, &HashMap::new());
         let names: Vec<&str> = records.iter().map(|r| r.package.name.as_str()).collect();
-        assert_eq!(names, ["gimp", "tar", "libc6:amd64", "libc6:i386"]);
+        assert_eq!(names, ["gimp", "tar", "dpkg", "libc6", "libc6:i386"]);
         let gimp = &records.first().ok_or("no gimp")?.package;
         assert_eq!(gimp.depends, ["libc6", "libgimp2.0", "python3 | python3-minimal"]);
         assert_eq!(gimp.recommends, ["ghostscript"]);
@@ -327,10 +390,26 @@ Architecture: i386
         assert_eq!(gimp.groups, ["graphics"]);
         assert_eq!(gimp.reason, Reason::Explicit);
         assert!(records.get(1).is_some_and(|tar| tar.package.essential));
-        let libc = records.get(2).ok_or("no libc6")?;
+        let libc = records.get(3).ok_or("no libc6")?;
         assert_eq!(libc.package.reason, Reason::Dependency);
-        assert!(libc.package.provides.contains(&"libc6".to_owned()));
+        let foreign = records.get(4).ok_or("no libc6:i386")?;
+        assert!(foreign.package.provides.contains(&"libc6".to_owned()));
         Ok(())
+    }
+
+    #[test]
+    fn the_archive_decides_whether_a_package_is_required() {
+        let status = "Package: wrap\nStatus: install ok installed\nPriority: required\nArchitecture: all\n\n\
+            Package: zones\nStatus: install ok installed\nPriority: optional\nArchitecture: all\n";
+        let archive = parse_priorities(
+            "Package: wrap\nArchitecture: all\nPriority: optional\n\n\
+             Package: zones\nArchitecture: all\nPriority: required\n",
+        );
+        let essential: Vec<bool> = parse_status(status, &HashSet::new(), &archive)
+            .iter()
+            .map(|record| record.package.essential)
+            .collect();
+        assert_eq!(essential, [false, true]);
     }
 
     #[test]

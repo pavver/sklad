@@ -38,6 +38,7 @@ pub struct Places {
     pub home: PathBuf,
     pub pacman_local: PathBuf,
     pub dpkg_status: PathBuf,
+    pub apt_extended_states: PathBuf,
     pub os_release: PathBuf,
     pub root: PathBuf,
 }
@@ -48,6 +49,7 @@ impl Places {
             home: std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default(),
             pacman_local: PathBuf::from("/var/lib/pacman/local"),
             dpkg_status: PathBuf::from("/var/lib/dpkg/status"),
+            apt_extended_states: PathBuf::from("/var/lib/apt/extended_states"),
             os_release: PathBuf::from("/etc/os-release"),
             root: PathBuf::from("/"),
         }
@@ -178,21 +180,33 @@ struct Context<'a> {
     lang: Lang,
 }
 
+/// Where a package of the distribution came from: the repository that has it, or else the AUR
+/// on pacman and a local file on dpkg.
+fn package_source(name: &str, system: PackageSystem, repositories: &HashMap<String, String>) -> Source {
+    let plain = name.split(':').next().unwrap_or(name);
+    match (repositories.get(name).or_else(|| repositories.get(plain)), system) {
+        (Some(repository), _) => Source::Repo(repository.clone()),
+        (None, PackageSystem::Pacman) => Source::Aur,
+        (None, PackageSystem::Dpkg) => Source::LocalDeb,
+    }
+}
+
 fn package_item(
     package: &Package,
+    system: PackageSystem,
     repositories: &HashMap<String, String>,
     extra_launchers: &[Launcher],
     context: &Context<'_>,
 ) -> Item {
-    let source = match repositories.get(&package.name) {
-        Some(repository) => Source::Repo(repository.clone()),
-        None => Source::Aur,
+    let prefix = match system {
+        PackageSystem::Pacman => "pacman",
+        PackageSystem::Dpkg => "dpkg",
     };
     let mut item = blank(
-        format!("pacman:{}", package.name),
+        format!("{prefix}:{}", package.name),
         package.name.clone(),
-        source,
-        Removal::Pacman,
+        package_source(&package.name, system, repositories),
+        Removal::Package(system),
     );
     item.version = package.version.clone();
     item.summary = package.summary.clone();
@@ -457,13 +471,25 @@ fn join_launcher(item: &mut Item, launcher: &Launcher, path: &Path, context: &Co
 pub fn run(places: &Places, lang: Lang) -> Catalog {
     let running = usage::running_programs();
     let system = system::detect(places);
-    // Debian packages are read in a later step; until then such a system shows the other sources.
     let (packages, repositories) = match system {
         Some(PackageSystem::Pacman) => (
             pacman::read_all(&places.pacman_local, &running),
             pacman::parse_repositories(&capture("pacman", &["-Sl"])),
         ),
-        Some(PackageSystem::Dpkg) | None => (Vec::new(), HashMap::new()),
+        Some(PackageSystem::Dpkg) => (
+            dpkg::read_all(
+                &places.dpkg_status,
+                &places.apt_extended_states,
+                &running,
+                |names| {
+                    let mut args = vec!["show", "--no-all-versions"];
+                    args.extend(names.iter().map(String::as_str));
+                    capture("apt-cache", &args)
+                },
+            ),
+            dpkg::repositories(&capture("apt", &["list", "--installed"])),
+        ),
+        None => (Vec::new(), HashMap::new()),
     };
     let icons = IconIndex::build(places);
     let records = usage::plasma_launches(
@@ -512,7 +538,13 @@ pub fn run(places: &Places, lang: Lang) -> Catalog {
         .iter()
         .map(|package| {
             let extra = manual.attached.get(&package.name).map_or(&[][..], Vec::as_slice);
-            let mut item = package_item(package, &repositories, extra, &context);
+            let mut item = package_item(
+                package,
+                system.unwrap_or(PackageSystem::Pacman),
+                &repositories,
+                extra,
+                &context,
+            );
             item.required_by = db.required_by(&package.name);
             item
         })

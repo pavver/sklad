@@ -19,6 +19,7 @@ fn without_pacman_or_dpkg_the_other_sources_are_still_listed() -> std::io::Resul
         home: base.join("home"),
         pacman_local: base.join("pacman"),
         dpkg_status: base.join("dpkg/status"),
+        apt_extended_states: base.join("apt/extended_states"),
         os_release: base.join("os-release"),
         root: PathBuf::from(&base),
     };
