@@ -60,6 +60,11 @@ pub static TEXT: Text = Text {
         1 => "1 entry".to_owned(),
         _ => format!("{count} entries"),
     },
+    shown_of: |shown, total| match total {
+        1 => format!("{shown} of 1 entry"),
+        _ => format!("{shown} of {total} entries"),
+    },
+    filters: "Filters",
 
     sort_by: "Sort by:",
     sort_last_run: "Last launch",

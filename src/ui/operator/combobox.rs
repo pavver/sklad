@@ -90,7 +90,8 @@ impl Combobox<'_> {
             .align(Align2::LEFT_CENTER);
         let row = ui.spacing().interact_size.y;
         ui.spacing_mut().interact_size.y = height;
-        let response = ui.put(text_rect, edit);
+        // `place` leaves the layout cursor alone: the field already took its whole rectangle.
+        let response = ui.place(text_rect, edit);
         ui.spacing_mut().interact_size.y = row;
         response.widget_info(|| WidgetInfo::labeled(egui::Role::ComboBox, true, self.label));
         let arrow_response = ui.interact(arrow, self.id.with("arrow"), Sense::click());

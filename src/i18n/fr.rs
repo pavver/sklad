@@ -58,6 +58,8 @@ pub static TEXT: Text = Text {
     clear_search: "Effacer la recherche",
     removed: |title| format!("Supprimé : {title}"),
     records: |count| counted(count as i64, "entrée", "entrées"),
+    shown_of: |shown, total| format!("{shown} sur {}", counted(total as i64, "entrée", "entrées")),
+    filters: "Filtres",
 
     sort_by: "Trier par :",
     sort_last_run: "Dernier lancement",

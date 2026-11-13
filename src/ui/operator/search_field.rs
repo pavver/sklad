@@ -45,7 +45,8 @@ impl SearchField<'_> {
             .align(Align2::LEFT_CENTER);
         let row = ui.spacing().interact_size.y;
         ui.spacing_mut().interact_size.y = height;
-        let response = ui.put(text_rect, edit);
+        // `place` leaves the layout cursor alone: the field already took its whole rectangle.
+        let response = ui.place(text_rect, edit);
         ui.spacing_mut().interact_size.y = row;
         let focused = response.has_focus();
         let mut report_now = focused && ui.input(|input| input.key_pressed(Key::Enter));

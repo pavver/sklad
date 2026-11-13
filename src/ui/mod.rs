@@ -24,7 +24,7 @@ use dialog::{Dialog, Exit};
 use operator::button::IconButton;
 use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize};
 use operator::combobox::{self, Combobox};
-use operator::content::{ChipColor, Pane, SplitPane, chip, chip_set, input_chip, theme_toggle};
+use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
 use operator::layout::{header, toolbar};
@@ -310,19 +310,26 @@ impl App {
 
     fn header(&mut self, ui: &mut Ui, palette: &Palette) {
         let text = self.text();
+        // What the list shows, and how much it takes: all of it, or the part the filters and the
+        // search leave.
         let subtitle = match &self.catalog {
             Some(catalog) => {
-                let total: u64 = catalog.items.iter().filter_map(|item| item.size).sum();
-                format!(
-                    "{}, {}",
-                    (text.records)(catalog.items.len()),
-                    format::size(total, text)
-                )
+                let shown = &self.visible;
+                let size: u64 = shown.iter().filter_map(|&index| catalog.items[index].size).sum();
+                let count = if shown.len() == catalog.items.len() {
+                    (text.records)(shown.len())
+                } else {
+                    (text.shown_of)(shown.len(), catalog.items.len())
+                };
+                format!("{count}, {}", format::size(size, text))
             }
             None => text.reading_system.to_owned(),
         };
         let mut toggled = false;
         let mut language = None;
+        let mut refresh = false;
+        let mut query = None;
+        let look = self.refresh.look(ui.input(|input| input.time), result_hold());
         header(ui, text.app_name, Some(&subtitle), palette, |ui| {
             toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
             let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
@@ -339,7 +346,25 @@ impl App {
             }
             .show(ui, selected, palette);
             language = choice.and_then(|index| Lang::ALL.get(index).copied());
+            let field = SearchField {
+                id: Id::unique("search"),
+                placeholder: text.search,
+                clear_label: text.clear_search,
+                height: dim::ROW_COMPACT,
+                width: (ui.available_width() - du(dim::ROW_COMPACT + dim::GUTTER)).clamp(0.0, du(80.0)),
+            };
+            query = field.show(ui, &mut self.view.query, palette);
+            refresh = IconButton::new(icon::REFRESH, text.refresh)
+                .look(look)
+                .show(ui, palette)
+                .clicked();
         });
+        if refresh && self.scanning.is_none() {
+            self.rescan(ui.ctx());
+        }
+        if query.is_some() {
+            self.refilter();
+        }
         if toggled {
             self.dark = !self.dark;
         }
@@ -425,34 +450,39 @@ impl App {
         });
     }
 
-    /// The chosen filters as chips, each with its remove button, and a chip that takes them all
-    /// off. Nothing when no filter is on.
-    fn filter_chips(&mut self, ui: &mut Ui, palette: &Palette) {
+    /// The chosen filters as chips, each with its remove button, and a chip at the end that
+    /// takes them all off. Nothing when no filter is on.
+    fn filter_bar(&mut self, ui: &mut Ui, palette: &Palette) {
         if self.view.filters().is_empty() {
             return;
         }
         let text = self.text();
         let mut removed = None;
         let mut reset = false;
-        Frame::new()
-            .fill(palette.surface)
-            .inner_margin(egui::Margin::same(du(dim::PAD_CARD) as i8 / 2))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                chip_set(ui, |ui| {
-                    for &facet in self.view.filters() {
-                        let (_, name) = facet_label(facet, text);
-                        let id = Id::unique(("filter chip", name));
-                        if input_chip(ui, id, name, &(text.remove_filter)(name), palette) {
-                            removed = Some(facet);
-                        }
-                    }
-                    reset = chip(ui, text.reset_filters, ChipColor::Neutral, true, palette).clicked();
-                });
-            });
-        let rect = ui.min_rect();
-        let line = egui::Stroke::new(operator::state::BORDER, palette.border);
-        ui.painter().hline(rect.x_range(), ui.cursor().top(), line);
+        let filters = self.view.filters().to_vec();
+        toolbar(
+            ui,
+            text.filters,
+            palette,
+            |ui| {
+                ScrollArea::horizontal()
+                    .id_salt("filter chips")
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = du(dim::PAD_TIGHT);
+                            for facet in filters {
+                                let (_, name) = facet_label(facet, text);
+                                let id = Id::unique(("filter chip", name));
+                                if input_chip(ui, id, name, &(text.remove_filter)(name), palette) {
+                                    removed = Some(facet);
+                                }
+                            }
+                        });
+                    });
+            },
+            |ui| reset = chip(ui, text.reset_filters, ChipColor::Neutral, true, palette).clicked(),
+        );
         if let Some(facet) = removed {
             self.view.toggle(facet);
             self.refilter();
@@ -461,41 +491,6 @@ impl App {
             self.view.clear();
             self.refilter();
         }
-    }
-
-    fn tool_bar(&mut self, ui: &mut Ui, now: f64, palette: &Palette) {
-        let text = self.text();
-        let title = (text.records)(self.visible.len());
-        let look = self.refresh.look(now, result_hold());
-        let mut refresh = false;
-        let mut query = None;
-        toolbar(
-            ui,
-            &title,
-            palette,
-            |ui| {
-                refresh = IconButton::new(icon::REFRESH, text.refresh)
-                    .look(look)
-                    .show(ui, palette)
-                    .clicked();
-                let field = SearchField {
-                    id: Id::unique("search"),
-                    placeholder: text.search,
-                    clear_label: text.clear_search,
-                    height: dim::ROW_COMPACT,
-                    width: ui.available_width().clamp(0.0, du(80.0)),
-                };
-                query = field.show(ui, &mut self.view.query, palette);
-            },
-            |_| {},
-        );
-        if refresh && self.scanning.is_none() {
-            self.rescan(ui.ctx());
-        }
-        if query.is_some() {
-            self.refilter();
-        }
-        self.filter_chips(ui, palette);
     }
 
     fn list(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
@@ -583,8 +578,8 @@ impl App {
     }
 
     /// The tool bar over the list, and the card beside it when something is selected.
-    fn catalogue(&mut self, ui: &mut Ui, time: f64, now: i64, palette: &Palette) {
-        self.tool_bar(ui, time, palette);
+    fn catalogue(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
+        self.filter_bar(ui, palette);
         if self.selection.is_some() {
             let mut split = self.split;
             let pane = SplitPane {
@@ -636,7 +631,7 @@ impl App {
             };
             sections.show(ui, &mut side, palette, |ui, pane| match pane {
                 Pane::Start => self.side_bar(ui, palette),
-                Pane::End => self.catalogue(ui, time, now, palette),
+                Pane::End => self.catalogue(ui, now, palette),
             });
             self.side = Some(side);
         });

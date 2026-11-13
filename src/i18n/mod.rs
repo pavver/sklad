@@ -150,6 +150,10 @@ pub struct Text {
     pub clear_search: &'static str,
     pub removed: fn(&str) -> String,
     pub records: fn(usize) -> String,
+    /// How many entries the list shows out of how many there are.
+    pub shown_of: fn(usize, usize) -> String,
+    /// The title of the bar of chosen filters.
+    pub filters: &'static str,
 
     pub sort_by: &'static str,
     pub sort_last_run: &'static str,

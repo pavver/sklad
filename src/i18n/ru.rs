@@ -71,6 +71,15 @@ pub static TEXT: Text = Text {
     clear_search: "Очистить поиск",
     removed: |title| format!("Удалено: {title}"),
     records: |count| format!("{count} {}", plural(count as i64, "запись", "записи", "записей")),
+    shown_of: |shown, total| {
+        let noun = if total % 10 == 1 && total % 100 != 11 {
+            "записи"
+        } else {
+            "записей"
+        };
+        format!("{shown} из {total} {noun}")
+    },
+    filters: "Фильтры",
 
     sort_by: "Сортировать:",
     sort_last_run: "Последний запуск",
