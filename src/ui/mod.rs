@@ -737,3 +737,51 @@ impl eframe::App for App {
         self.draw(ui);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Tiles of one group are told apart by their icons, so no two share one.
+    fn distinct(icons: Vec<Icon>) -> bool {
+        let mut names: Vec<&str> = icons.iter().map(|icon| icon.name()).collect();
+        names.sort_unstable();
+        names.dedup();
+        names.len() == icons.len()
+    }
+
+    #[test]
+    fn every_section_has_its_own_glyph_and_name_in_the_theme() {
+        let sections: Vec<Section> = Section::APPS.iter().chain(&Section::OTHER).copied().collect();
+        assert!(distinct(
+            sections.iter().map(|&section| section_icon(section)).collect()
+        ));
+        for section in sections {
+            assert!(!theme_names(Facet::Section(section)).is_empty(), "{section:?}");
+        }
+    }
+
+    #[test]
+    fn sources_show_their_logos_and_the_repositories_that_of_the_distribution() {
+        let pacman = Some(PackageSystem::Pacman);
+        assert_eq!(source_icon(SourceKind::Repo, pacman), icon::LOGO_ARCHLINUX);
+        assert_eq!(
+            source_icon(SourceKind::Repo, Some(PackageSystem::Dpkg)),
+            icon::LOGO_DEBIAN
+        );
+        assert_eq!(source_icon(SourceKind::Repo, None), icon::INVENTORY_2);
+        // Cargo and Rustup both belong to Rust and share its logo; every other source has its own.
+        let others: Vec<Icon> = SourceKind::ALL
+            .iter()
+            .filter(|&&source| source != SourceKind::Rustup)
+            .map(|&source| source_icon(source, pacman))
+            .collect();
+        assert!(distinct(others));
+        assert_eq!(source_icon(SourceKind::Rustup, pacman), icon::LOGO_RUST);
+        assert!(
+            theme_names(Facet::Source(SourceKind::Steam)).is_empty(),
+            "sources never use the theme"
+        );
+        assert!(theme_names(Facet::Origin(Origin::Orphan)).is_empty());
+    }
+}

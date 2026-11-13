@@ -319,6 +319,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_section_and_source_has_its_own_name_in_every_language() {
+        use crate::model::{Section, SourceKind};
+        for lang in Lang::ALL {
+            let text = lang.text();
+            let sections = Section::APPS
+                .iter()
+                .chain(&Section::OTHER)
+                .map(|&s| (text.section)(s));
+            let sources = SourceKind::ALL.iter().map(|&s| (text.source)(s));
+            for (kind, names) in [
+                ("section", sections.collect::<Vec<_>>()),
+                ("source", sources.collect()),
+            ] {
+                let mut unique = names.clone();
+                unique.sort_unstable();
+                unique.dedup();
+                assert_eq!(
+                    unique.len(),
+                    names.len(),
+                    "{lang:?} repeats a {kind} name: {names:?}"
+                );
+                assert!(
+                    names.iter().all(|name| !name.is_empty()),
+                    "{lang:?} leaves a {kind} unnamed"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_locale_gives_its_language_and_an_unknown_one_gives_english() {
         assert_eq!(Lang::of_locale("uk_UA.UTF-8"), Lang::Uk);
         assert_eq!(Lang::of_locale("uk:en_US"), Lang::Uk);
