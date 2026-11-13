@@ -37,15 +37,10 @@ pub struct Catalog {
 
 /// Looks up every name the side bar may ask for.
 fn theme_icons(icons: &IconIndex) -> HashMap<&'static str, PathBuf> {
-    let sections = Section::APPS
+    Section::APPS
         .iter()
         .chain(&Section::OTHER)
-        .flat_map(|section| section.theme_icons());
-    let sources = crate::model::SourceKind::ALL
-        .iter()
-        .flat_map(|source| source.theme_icons());
-    sections
-        .chain(sources)
+        .flat_map(|section| section.theme_icons())
         .filter_map(|&name| icons.find(name).map(|path| (name, path)))
         .collect()
 }

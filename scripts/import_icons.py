@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Imports Material Symbols Sharp icons listed in assets/icons/icons.toml into assets/icons/.
+"""Imports the icons listed in assets/icons/icons.toml into assets/icons/.
 
-Downloads the official SVGs from github.com/google/material-design-icons,
+Downloads Material Symbols Sharp SVGs from github.com/google/material-design-icons
+and source logos from Simple Icons (pinned to SIMPLE_ICONS_VERSION),
 keeps only the viewBox and path data, and verifies that every SVG file in
 assets/icons/ is declared in the manifest (Material or custom).
 
@@ -21,6 +22,8 @@ SOURCE = (
     "https://raw.githubusercontent.com/google/material-design-icons/master/"
     "symbols/web/{name}/materialsymbolssharp/{name}{fill}_{opsz}px.svg"
 )
+SIMPLE_ICONS_VERSION = "13.21.0"
+SIMPLE_SOURCE = "https://cdn.jsdelivr.net/npm/simple-icons@{version}/icons/{name}.svg"
 OPTICAL_SIZES = {20, 24, 40, 48}
 NAME_RE = re.compile(r"^[a-z0-9_]+$")
 
@@ -34,10 +37,17 @@ def normalize(svg: str, url: str) -> str:
     return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view_box.group(1)}">{body}</svg>\n'
 
 
-def fetch(name: str, fill: bool, opsz: int) -> str:
-    url = SOURCE.format(name=name, fill="_fill1" if fill else "", opsz=opsz)
+def download(url: str) -> str:
     with urllib.request.urlopen(url, timeout=30) as response:
         return normalize(response.read().decode("utf-8"), url)
+
+
+def fetch(name: str, fill: bool, opsz: int) -> str:
+    return download(SOURCE.format(name=name, fill="_fill1" if fill else "", opsz=opsz))
+
+
+def fetch_simple(name: str) -> str:
+    return download(SIMPLE_SOURCE.format(version=SIMPLE_ICONS_VERSION, name=name))
 
 
 def main() -> int:
@@ -58,17 +68,26 @@ def main() -> int:
             if not target.exists():
                 errors.append(f"custom icon {key} has no file {target.name}")
             continue
+        simple = spec.get("simple")
         material = spec.get("material")
         opsz = spec.get("opsz", 20)
-        if not material or not NAME_RE.match(material) or opsz not in OPTICAL_SIZES:
+        if simple:
+            if not re.match(r"^[a-z0-9]+$", simple):
+                errors.append(f"invalid entry for {key}")
+                continue
+            svg = fetch_simple(simple)
+            origin = f"Simple Icons {simple}"
+        elif material and NAME_RE.match(material) and opsz in OPTICAL_SIZES:
+            svg = fetch(material, bool(spec.get("fill", False)), opsz)
+            origin = f"Material Symbols Sharp {material}"
+        else:
             errors.append(f"invalid entry for {key}")
             continue
-        svg = fetch(material, bool(spec.get("fill", False)), opsz)
         current = target.read_text("utf-8") if target.exists() else None
         if current == svg:
             continue
         if check:
-            errors.append(f"{target.name} differs from Material Symbols Sharp {material}")
+            errors.append(f"{target.name} differs from {origin}")
         else:
             target.write_text(svg, "utf-8")
             print(f"wrote {target.relative_to(ROOT)}")

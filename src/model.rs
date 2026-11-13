@@ -99,22 +99,6 @@ impl SourceKind {
         }
     }
 
-    /// Names of the icon of the source in the icon themes, most fitting first.
-    pub fn theme_icons(self) -> &'static [&'static str] {
-        match self {
-            SourceKind::Repo => &["distributor-logo"],
-            SourceKind::Aur => &["archlinux-logo", "distributor-logo-archlinux"],
-            SourceKind::Flatpak => &["flatpak", "flatpak-discover"],
-            SourceKind::Steam => &["steam"],
-            SourceKind::Cargo | SourceKind::Rustup => &["rust"],
-            SourceKind::Node => &["nodejs", "node"],
-            SourceKind::Python => &["python", "python3"],
-            SourceKind::LocalDeb => &["application-x-deb"],
-            SourceKind::Docker => &["docker", "docker-desktop"],
-            SourceKind::Manual => &["folder"],
-        }
-    }
-
     /// Language managers install command-line tools and libraries, and Docker keeps containers,
     /// never windowed programs.
     pub fn holds_only_tools(self) -> bool {

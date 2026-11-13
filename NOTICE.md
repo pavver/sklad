@@ -11,6 +11,9 @@ The font is not covered by the MIT license of this repository.
 The icons are [Material Symbols](https://github.com/google/material-design-icons) (Sharp style) by Google, licensed under the Apache License 2.0.
 They come from the Operator UI design system and from [assets/icons](assets/icons); the import keeps only their `viewBox` and path data.
 
+The logos of the sources, `logo_*.svg` in [assets/icons](assets/icons), come from [Simple Icons](https://simpleicons.org), released under CC0 1.0.
+The logos themselves are trademarks of their owners and are used only to name the source of an entry.
+
 ## Day/Night Toggle
 
 The theme toggle follows the ThemeToggle of the Operator UI design system, which is based on the [Day/Night Toggle](https://codepen.io/jh3y/pen/LYgjpYZ) by Jhey Tompkins.

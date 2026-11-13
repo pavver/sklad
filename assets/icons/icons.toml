@@ -7,17 +7,18 @@
 #   material = Material Symbols name (https://fonts.google.com/icons?icon.style=Sharp)
 #   fill     = true for the filled variant (default false, outlined)
 #   opsz     = optical size: 20 (default, for icons up to 5 DU), 24, 40 or 48
+#
+# Source logos come from Simple Icons (https://simpleicons.org, CC0 1.0), at the version pinned in
+# scripts/import_icons.py, and are drawn in one colour like the rest:
+#   simple   = Simple Icons slug
 
 [icons]
 account_tree = { material = "account_tree" }
 box = { material = "box" }
 build = { material = "build" }
 code = { material = "code" }
-construction = { material = "construction" }
 database = { material = "database" }
-deployed_code = { material = "deployed_code" }
 description = { material = "description" }
-directions_boat = { material = "directions_boat" }
 extension = { material = "extension" }
 folder = { material = "folder" }
 font_download = { material = "font_download" }
@@ -39,3 +40,13 @@ science = { material = "science" }
 sports_esports = { material = "sports_esports" }
 stacks = { material = "stacks" }
 terminal = { material = "terminal" }
+
+# Logos of the sources, the same on every system.
+logo_archlinux = { simple = "archlinux" }
+logo_debian = { simple = "debian" }
+logo_docker = { simple = "docker" }
+logo_flatpak = { simple = "flatpak" }
+logo_nodejs = { simple = "nodedotjs" }
+logo_python = { simple = "python" }
+logo_rust = { simple = "rust" }
+logo_steam = { simple = "steam" }

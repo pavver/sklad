@@ -18,7 +18,7 @@ use eframe::egui::{self, CentralPanel, Frame, Id, Panel, ScrollArea, Ui, vec2};
 
 use crate::i18n::{Choice, Lang, Text};
 use crate::launch;
-use crate::model::{DockerKind, Item, Section, SourceKind};
+use crate::model::{DockerKind, Item, PackageSystem, Section, SourceKind};
 use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
@@ -103,17 +103,17 @@ fn origin_icon(origin: Origin) -> Icon {
     }
 }
 
-/// The names of the icon of a filter in the icon themes. Origins have none there.
+/// The names of the icon of a filter in the icon themes. Only sections take theirs from the
+/// theme: sources show logos sklad carries, and origins Material Symbols.
 fn theme_names(facet: Facet) -> &'static [&'static str] {
     match facet {
         Facet::Section(section) => section.theme_icons(),
-        Facet::Source(source) => source.theme_icons(),
-        Facet::Origin(_) => &[],
+        Facet::Source(_) | Facet::Origin(_) => &[],
     }
 }
 
 /// The icon and the name of a filter, as its tile and its chip say it.
-fn facet_label(facet: Facet, text: &Text) -> (Icon, &'static str) {
+fn facet_label(facet: Facet, text: &Text, system: Option<PackageSystem>) -> (Icon, &'static str) {
     match facet {
         Facet::Section(section) => (section_icon(section), (text.section)(section)),
         Facet::Origin(origin) => {
@@ -124,7 +124,7 @@ fn facet_label(facet: Facet, text: &Text) -> (Icon, &'static str) {
             };
             (origin_icon(origin), name)
         }
-        Facet::Source(source) => (source_icon(source), (text.source)(source)),
+        Facet::Source(source) => (source_icon(source, system), (text.source)(source)),
     }
 }
 
@@ -161,16 +161,22 @@ pub(crate) fn picture<'a>(item: &Item, pictures: &'a mut Pictures) -> operator::
     }
 }
 
-fn source_icon(source: SourceKind) -> Icon {
+/// The logo of a source, the same on every system; a glyph where the source has no logo of its own.
+fn source_icon(source: SourceKind, system: Option<PackageSystem>) -> Icon {
     match source {
-        SourceKind::Repo => icon::INVENTORY_2,
+        SourceKind::Repo => match system {
+            Some(PackageSystem::Pacman) => icon::LOGO_ARCHLINUX,
+            Some(PackageSystem::Dpkg) => icon::LOGO_DEBIAN,
+            None => icon::INVENTORY_2,
+        },
         SourceKind::Aur => icon::GROUPS,
-        SourceKind::Flatpak => icon::DEPLOYED_CODE,
-        SourceKind::Steam => icon::SPORTS_ESPORTS,
-        SourceKind::Cargo | SourceKind::Node | SourceKind::Python => icon::CODE,
-        SourceKind::Rustup => icon::CONSTRUCTION,
+        SourceKind::Flatpak => icon::LOGO_FLATPAK,
+        SourceKind::Steam => icon::LOGO_STEAM,
+        SourceKind::Cargo | SourceKind::Rustup => icon::LOGO_RUST,
+        SourceKind::Node => icon::LOGO_NODEJS,
+        SourceKind::Python => icon::LOGO_PYTHON,
         SourceKind::LocalDeb => icon::PACKAGE_2,
-        SourceKind::Docker => icon::DIRECTIONS_BOAT,
+        SourceKind::Docker => icon::LOGO_DOCKER,
         SourceKind::Manual => icon::FOLDER,
     }
 }
@@ -401,11 +407,12 @@ impl App {
             .as_ref()
             .map_or(&[][..], |catalog| catalog.items.as_slice());
         let theme = self.catalog.as_ref().map(|catalog| &catalog.theme_icons);
+        let system = self.catalog.as_ref().and_then(|catalog| catalog.system);
         let pictures = &mut self.pictures;
         let tiles: Vec<GroupItem<'_>> = facets
             .iter()
             .map(|&facet| {
-                let (glyph, name) = facet_label(facet, text);
+                let (glyph, name) = facet_label(facet, text, system);
                 // The icon of the system theme, so the side bar looks like the rest of the
                 // desktop; the glyph while it loads, or when the theme has none.
                 let path = theme.and_then(|found| theme_names(facet).iter().find_map(|name| found.get(name)));
@@ -493,7 +500,7 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = du(dim::PAD_TIGHT);
                             for facet in filters {
-                                let (_, name) = facet_label(facet, text);
+                                let (_, name) = facet_label(facet, text, None);
                                 let id = Id::unique(("filter chip", name));
                                 if input_chip(ui, id, name, &(text.remove_filter)(name), palette) {
                                     removed = Some(facet);
