@@ -1,5 +1,6 @@
 //! Launcher files (`.desktop`): the name, the icon and the section of a program with a window.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,50 +30,47 @@ pub fn read(path: &Path, lang: Lang) -> Option<Launcher> {
 }
 
 pub fn parse(id: &str, text: &str, lang: Lang) -> Option<Launcher> {
-    let code = lang.code();
-    let mut launcher = Launcher {
+    let fields = entry_fields(text);
+    if fields.get("Type").copied() != Some("Application") {
+        return None;
+    }
+    let field = |key: &str| fields.get(key).map(|value| (*value).to_owned());
+    let local = |key: &str| field(&format!("{key}[{}]", lang.code())).or_else(|| field(key));
+    let hidden = ["NoDisplay", "Hidden"]
+        .iter()
+        .any(|key| fields.get(key) == Some(&"true"));
+    Some(Launcher {
         id: id.to_owned(),
-        shown: true,
-        ..Launcher::default()
-    };
-    let mut plain_name = None;
-    let mut local_name = None;
-    let mut plain_comment = None;
-    let mut local_comment = None;
-    let mut in_entry = false;
-    let mut is_application = false;
-    for line in text.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            in_entry = line == "[Desktop Entry]";
-            continue;
-        }
-        let Some((key, value)) = line.split_once('=').filter(|_| in_entry) else {
-            continue;
-        };
-        let value = value.trim().to_owned();
-        match key.trim() {
-            "Type" => is_application = value == "Application",
-            "Name" => plain_name = Some(value),
-            "Comment" => plain_comment = Some(value),
-            "Icon" => launcher.icon = Some(value).filter(|icon| !icon.is_empty()),
-            "Exec" => launcher.exec = Some(value),
-            "Categories" => {
-                launcher.categories = value
-                    .split(';')
+        name: local("Name")?,
+        comment: local("Comment").filter(|comment| !comment.is_empty()),
+        icon: field("Icon").filter(|icon| !icon.is_empty()),
+        exec: field("Exec"),
+        categories: fields
+            .get("Categories")
+            .map(|list| {
+                list.split(';')
                     .filter(|part| !part.is_empty())
                     .map(str::to_owned)
-                    .collect();
-            }
-            "NoDisplay" | "Hidden" if value == "true" => launcher.shown = false,
-            other if other == format!("Name[{code}]") => local_name = Some(value),
-            other if other == format!("Comment[{code}]") => local_comment = Some(value),
-            _ => {}
+                    .collect()
+            })
+            .unwrap_or_default(),
+        shown: !hidden,
+        path: PathBuf::new(),
+    })
+}
+
+/// The keys and values of the `[Desktop Entry]` group, trimmed; a later key wins.
+fn entry_fields(text: &str) -> HashMap<&str, &str> {
+    let mut fields = HashMap::new();
+    let mut in_entry = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_entry = line == "[Desktop Entry]";
+        } else if let Some((key, value)) = line.split_once('=').filter(|_| in_entry) {
+            fields.insert(key.trim(), value.trim());
         }
     }
-    launcher.name = local_name.or(plain_name)?;
-    launcher.comment = local_comment.or(plain_comment).filter(|c| !c.is_empty());
-    is_application.then_some(launcher)
+    fields
 }
 
 /// The section a launcher belongs to. The order settles programs that list several categories.
