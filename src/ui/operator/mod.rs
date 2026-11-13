@@ -18,9 +18,11 @@ pub mod layout;
 pub mod motion;
 pub mod search_field;
 pub mod segmented;
+pub mod split_pane;
 pub mod state;
 pub mod terminal;
 pub mod text;
+pub mod theme_toggle;
 pub mod tokens;
 
 use eframe::egui::{self, CornerRadius, FontId, Margin, Shadow, Stroke, TextStyle, style::ScrollStyle};

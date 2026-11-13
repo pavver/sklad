@@ -27,12 +27,14 @@ use operator::checkbox_group::{self, CheckboxGroup, GroupItem, IconSize, TileIco
 use operator::collapsible::{self, Collapsible};
 use operator::combobox::{self, Combobox};
 use operator::content::Picture;
-use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
+use operator::content::{ChipColor, chip, input_chip};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
 use operator::layout::{HeaderCentre, header, toolbar};
 use operator::search_field::SearchField;
+use operator::split_pane::{Pane, SplitPane};
 use operator::state::{Activity, Look, Outcome, result_hold};
+use operator::theme_toggle::theme_toggle;
 use operator::tokens::{DARK, LIGHT, Palette, dim, du, install_fonts};
 use pictures::Pictures;
 use view::{Facet, Origin, View};
