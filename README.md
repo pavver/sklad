@@ -14,16 +14,16 @@
 ![Ubuntu](https://img.shields.io/badge/Ubuntu-E95420?logo=ubuntu&logoColor=white)
 ![egui](https://img.shields.io/badge/UI-egui-5a67d8)
 
-[Website](https://pavver.github.io/sklad/) · [Українська](README.uk.md)
+[Website](https://pavver.github.io/sklad/) · [Українська](README.uk.md) · [Site en français](https://pavver.github.io/sklad/fr.html) · [Сайт на русском](https://pavver.github.io/sklad/ru.html)
 
 ![The Sklad catalogue: installed programs with icons, sizes and last launch, and the card of a program](docs/screenshots/en-catalogue.png)
 
 </div>
 
 Package managers only tell you what they installed themselves.
-Sklad puts pacman, AUR and apt packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, and loose files in one list.
+Sklad puts pacman, AUR and apt packages, Flatpak apps, Steam games, Rust toolchains, Cargo, npm and Python tools, Python environments, Docker containers, images and volumes, and loose files in one list.
 Sort it by last launch to find what has gone unused, read what each entry is, and uninstall it with a command you see before it runs.
-It is a graphical way to find unused packages, orphan dependencies and forgotten developer tools, and to free disk space on Arch Linux, Debian and Ubuntu.
+It is a graphical way to find unused packages, orphan dependencies, forgotten developer tools, old virtual environments and Docker images, and to free disk space on Arch Linux, Debian and Ubuntu.
 
 > [!WARNING]
 > Early version.
@@ -33,6 +33,7 @@ It is a graphical way to find unused packages, orphan dependencies and forgotten
 ## Features
 
 - **One catalogue** of programs, console tools, libraries, fonts, drivers and metapackages.
+- **Beyond packages:** Docker containers, images and volumes with their size and what uses them, and the Python environments of virtualenvwrapper, pyenv, conda and mamba.
 - **Details for each entry:** icon, description, license, website, developer, size, install date.
 - **Last launch** from the Plasma log and Steam, to surface what you stopped using.
 - **Filters:** by section, by source, packages you installed yourself, dependencies, unneeded dependencies (orphans), and search.
