@@ -81,6 +81,17 @@
     <display_length compare="ge">1100</display_length>
   </requires>
   <releases>
+    <release version="0.4.0" date="2026-11-13">
+      <description>
+        <p>A Docker Compose project or a container is one row with the images and volumes only it uses, each kind
+        with its own icon. Filters are tiles in the side bar with the number each would show, and the ones that are
+        on show as chips over the list. The card closes with its own button, and the side panes keep their width.</p>
+        <p xml:lang="uk">Проєкт Docker Compose або контейнер займає один рядок разом з образами й томами, які
+        використовує лише він, і кожен тип має свою іконку. Фільтри стали плитками на бічній панелі з числом записів,
+        які покаже кожна, а ввімкнені видно чіпами над списком. Картка закривається власною кнопкою, а бічні панелі
+        зберігають свою ширину.</p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-11-13">
       <description>
         <p>Docker containers, images and volumes and Python environments in the catalogue, the names of the packages
