@@ -1,43 +1,36 @@
 //! The window. `App` holds the state; the modules draw parts of it and report what was asked for.
 
+mod catalogue;
 mod detail;
 mod dialog;
 pub mod format;
+mod header;
 mod list;
 mod operator;
 mod pictures;
+mod side_bar;
 pub mod view;
 
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use eframe::egui::{self, CentralPanel, Frame, Id, Panel, ScrollArea, Ui, vec2};
+use eframe::egui::{self, CentralPanel, Frame, Id, Panel, Ui, vec2};
 
 use crate::i18n::{Choice, Lang, Text};
 use crate::launch;
-use crate::model::{DockerKind, Item, PackageSystem, Section, SourceKind};
+use crate::model::{DockerKind, Item};
 use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
-use operator::button::IconButton;
-use operator::checkbox_group::{self, CheckboxGroup, GroupItem, IconSize, TileIcon};
-use operator::collapsible::{self, Collapsible};
-use operator::combobox::{self, Combobox};
-use operator::content::Picture;
-use operator::content::{ChipColor, chip, input_chip};
 use operator::feedback::{Toasts, Tone};
-use operator::icon::{self, Icon};
-use operator::layout::{HeaderCentre, header, toolbar};
-use operator::search_field::SearchField;
+use operator::icon;
 use operator::split_pane::{Pane, SplitPane};
-use operator::state::{Activity, Look, Outcome, result_hold};
-use operator::theme_toggle::theme_toggle;
-use operator::tokens::{DARK, LIGHT, Palette, dim, du, install_fonts};
+use operator::state::{Activity, Outcome};
+use operator::tokens::{DARK, LIGHT, Palette, du, install_fonts};
 use pictures::Pictures;
-use view::{Facet, Origin, View};
+use view::View;
 
 /// Produces a catalogue. Runs on a background thread.
 pub type Scanner = Arc<dyn Fn(Lang) -> Catalog + Send + Sync>;
@@ -91,68 +84,6 @@ const SIDE_BAR: f32 = du(84.0);
 const SIDE_BAR_MIN: f32 = 64.0;
 /// The width of the card at first and after a double click on its divider.
 const CARD: f32 = du(112.0);
-/// The narrowest the list and the card get, in DU.
-const PANE_MIN: f32 = 90.0;
-
-/// The largest number a tile of the side bar shows in full; a catalogue rarely holds more.
-const COUNT_MAX: usize = 99_999;
-/// The width in DU the search in the middle of the header would like.
-const SEARCH_WIDTH: f32 = 80.0;
-/// The side in DU of the refresh button before the title, a size the specification lists.
-const REFRESH_SIZE: f32 = 11.0;
-
-fn origin_icon(origin: Origin) -> Icon {
-    match origin {
-        Origin::Explicit => icon::PERSON,
-        Origin::Needed => icon::LINK,
-        Origin::Orphan => icon::LINK_OFF,
-    }
-}
-
-/// The names of the icon of a filter in the icon themes. Only sections take theirs from the
-/// theme: sources show logos sklad carries, and origins Material Symbols.
-fn theme_names(facet: Facet) -> &'static [&'static str] {
-    match facet {
-        Facet::Section(section) => section.theme_icons(),
-        Facet::Source(_) | Facet::Origin(_) => &[],
-    }
-}
-
-/// The icon and the name of a filter, as its tile and its chip say it.
-fn facet_label(facet: Facet, text: &Text, system: Option<PackageSystem>) -> (Icon, &'static str) {
-    match facet {
-        Facet::Section(section) => (section_icon(section), (text.section)(section)),
-        Facet::Origin(origin) => {
-            let name = match origin {
-                Origin::Explicit => text.origin_explicit,
-                Origin::Needed => text.origin_needed,
-                Origin::Orphan => text.origin_orphans,
-            };
-            (origin_icon(origin), name)
-        }
-        Facet::Source(source) => (source_icon(source, system), (text.source)(source)),
-    }
-}
-
-fn section_icon(section: Section) -> Icon {
-    match section {
-        Section::Internet => icon::PUBLIC,
-        Section::Multimedia => icon::MOVIE,
-        Section::Graphics => icon::PALETTE,
-        Section::Office => icon::DESCRIPTION,
-        Section::Development => icon::CODE,
-        Section::Games => icon::SPORTS_ESPORTS,
-        Section::Education => icon::SCHOOL,
-        Section::Science => icon::SCIENCE,
-        Section::System => icon::SETTINGS,
-        Section::Utilities => icon::BUILD,
-        Section::Console => icon::TERMINAL,
-        Section::Libraries => icon::EXTENSION,
-        Section::Fonts => icon::FONT_DOWNLOAD,
-        Section::Drivers => icon::MEMORY,
-        Section::Meta => icon::LAYERS,
-    }
-}
 
 /// What a row shows in its avatar: the icon of its kind for a Docker object, which has no
 /// picture, and the picture of the program otherwise.
@@ -164,26 +95,6 @@ pub(crate) fn picture<'a>(item: &Item, pictures: &'a mut Pictures) -> operator::
         Some(DockerKind::Image) => Picture::Glyph(icon::STACKS),
         Some(DockerKind::Volume) => Picture::Glyph(icon::DATABASE),
         None => pictures.get(item.icon.as_deref()),
-    }
-}
-
-/// The logo of a source, the same on every system; a glyph where the source has no logo of its own.
-fn source_icon(source: SourceKind, system: Option<PackageSystem>) -> Icon {
-    match source {
-        SourceKind::Repo => match system {
-            Some(PackageSystem::Pacman) => icon::LOGO_ARCHLINUX,
-            Some(PackageSystem::Dpkg) => icon::LOGO_DEBIAN,
-            None => icon::INVENTORY_2,
-        },
-        SourceKind::Aur => icon::GROUPS,
-        SourceKind::Flatpak => icon::LOGO_FLATPAK,
-        SourceKind::Steam => icon::LOGO_STEAM,
-        SourceKind::Cargo | SourceKind::Rustup => icon::LOGO_RUST,
-        SourceKind::Node => icon::LOGO_NODEJS,
-        SourceKind::Python => icon::LOGO_PYTHON,
-        SourceKind::LocalDeb => icon::PACKAGE_2,
-        SourceKind::Docker => icon::LOGO_DOCKER,
-        SourceKind::Manual => icon::FOLDER,
     }
 }
 
@@ -335,300 +246,10 @@ impl App {
             });
     }
 
-    fn header(&mut self, ui: &mut Ui, palette: &Palette) {
-        let text = self.text();
-        // What the list shows, and how much it takes: all of it, or the part the filters and the
-        // search leave.
-        let subtitle = match &self.catalog {
-            Some(_) if self.scanning.is_some() => text.reading_system.to_owned(),
-            Some(catalog) => {
-                let shown = &self.visible;
-                let size: u64 = shown.iter().filter_map(|&index| catalog.items[index].size).sum();
-                let count = if shown.len() == catalog.items.len() {
-                    (text.records)(shown.len())
-                } else {
-                    (text.shown_of)(shown.len(), catalog.items.len())
-                };
-                format!("{count}, {}", format::size(size, text))
-            }
-            None => text.reading_system.to_owned(),
-        };
-        let mut toggled = false;
-        let mut language = None;
-        let mut refresh = false;
-        let mut query = None;
-        let look = self.refresh.look(ui.input(|input| input.time), result_hold());
-        let query_text = &mut self.view.query;
-        let search = HeaderCentre {
-            width: du(SEARCH_WIDTH),
-            content: |ui: &mut Ui| {
-                let field = SearchField {
-                    id: Id::unique("search"),
-                    placeholder: text.search,
-                    clear_label: text.clear_search,
-                    height: dim::ROW_COMPACT,
-                    width: ui.available_width(),
-                };
-                query = field.show(ui, query_text, palette);
-            },
-        };
-        let refresh_button = |ui: &mut Ui| {
-            refresh = IconButton::new(icon::REFRESH, text.refresh)
-                .size(REFRESH_SIZE)
-                .icon_size(dim::ICON_LARGE)
-                .look(look)
-                .show(ui, palette)
-                .clicked();
-        };
-        let start = Some(refresh_button);
-        header(
-            ui,
-            text.app_name,
-            Some(&subtitle),
-            palette,
-            start,
-            Some(search),
-            |ui| {
-                toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
-                let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
-                let selected = Lang::ALL
-                    .iter()
-                    .position(|&lang| lang == self.choice.lang)
-                    .unwrap_or(0);
-                let choice = Combobox {
-                    id: Id::unique("language"),
-                    options: &names,
-                    label: text.language,
-                    no_matches: text.no_matches,
-                    width: combobox::natural_width(ui, &names),
-                }
-                .show(ui, selected, palette);
-                language = choice.and_then(|index| Lang::ALL.get(index).copied());
-            },
-        );
-        if refresh && self.scanning.is_none() {
-            self.rescan(ui.ctx());
-        }
-        if query.is_some() {
-            self.refilter();
-        }
-        if toggled {
-            self.dark = !self.dark;
-        }
-        if let Some(lang) = language {
-            self.switch_language(ui.ctx(), lang);
-        }
-    }
-
-    /// One group of filters: a `Collapsible` holding a `CheckboxGroup`, each tile with the number
-    /// choosing it would show. The header counts the filters of the group that are on, so a
-    /// closed group still says it filters. `key` names the group whatever the language.
-    fn facets(&mut self, ui: &mut Ui, key: &str, title: &str, facets: &[Facet], palette: &Palette) {
-        if facets.is_empty() {
-            return;
-        }
-        let text = self.text();
-        let items = self
-            .catalog
-            .as_ref()
-            .map_or(&[][..], |catalog| catalog.items.as_slice());
-        let theme = self.catalog.as_ref().map(|catalog| &catalog.theme_icons);
-        let system = self.catalog.as_ref().and_then(|catalog| catalog.system);
-        let pictures = &mut self.pictures;
-        let tiles: Vec<GroupItem<'_>> = facets
-            .iter()
-            .map(|&facet| {
-                let (glyph, name) = facet_label(facet, text, system);
-                // The icon of the system theme, so the side bar looks like the rest of the
-                // desktop; the glyph while it loads, or when the theme has none.
-                let path = theme.and_then(|found| theme_names(facet).iter().find_map(|name| found.get(name)));
-                let icon = match pictures.get(path.map(PathBuf::as_path)) {
-                    Picture::Ready(texture) => TileIcon::Picture(texture.clone()),
-                    _ => TileIcon::Glyph(glyph),
-                };
-                GroupItem {
-                    name,
-                    icon: Some(icon),
-                    count: Some(self.view.count(items, facet)),
-                    selected: self.view.is_on(facet),
-                }
-            })
-            .collect();
-        let section = Collapsible {
-            id: Id::unique(("filter group", key)),
-            title,
-            count: tiles.iter().filter(|tile| tile.selected).count(),
-            counter_max: COUNT_MAX,
-            initially_open: true,
-        };
-        let mut clicked = None;
-        section.show(ui, palette, |ui| {
-            let group = CheckboxGroup {
-                id: Id::unique(("facets", key)),
-                items: &tiles,
-                icon_size: IconSize::Large,
-                counter_max: COUNT_MAX,
-            };
-            clicked = group.show(ui, palette);
-        });
-        if let Some(index) = clicked {
-            self.view.toggle(facets[index]);
-            self.refilter();
-        }
-    }
-
     /// Whether the catalogue is being read, the first time or again: the list and the side bar
     /// show skeletons then, and the filters are hidden.
     fn loading(&self) -> bool {
         self.catalog.is_none() || self.scanning.is_some()
-    }
-
-    /// The side bar while the catalogue loads: the four groups in the shape they will take.
-    fn side_bar_skeleton(ui: &mut Ui, palette: &Palette) {
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            for (seed, tiles) in [6, 3, 3, 3].into_iter().enumerate() {
-                collapsible::skeleton(ui, seed, palette, |ui| {
-                    checkbox_group::skeleton(ui, tiles, IconSize::Large, palette);
-                });
-            }
-        });
-    }
-
-    fn side_bar(&mut self, ui: &mut Ui, palette: &Palette) {
-        if self.loading() {
-            Self::side_bar_skeleton(ui, palette);
-            return;
-        }
-        let text = self.text();
-        let (programs, other, sources): (Vec<Facet>, Vec<Facet>, Vec<Facet>) =
-            self.catalog.as_ref().map_or_else(Default::default, |catalog| {
-                let items = &catalog.items;
-                let sections = |list: &[Section]| -> Vec<Facet> {
-                    view::offered_sections(items, list, &self.view)
-                        .into_iter()
-                        .map(Facet::Section)
-                        .collect()
-                };
-                let sources: Vec<Facet> = view::offered_sources(items, catalog.system, &self.view)
-                    .into_iter()
-                    .map(Facet::Source)
-                    .collect();
-                (sections(&Section::APPS), sections(&Section::OTHER), sources)
-            });
-        let origins = Origin::ALL.map(Facet::Origin);
-        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            self.facets(ui, "programs", text.heading_programs, &programs, palette);
-            self.facets(ui, "other", text.other, &other, palette);
-            self.facets(ui, "origin", text.heading_origin, &origins, palette);
-            self.facets(ui, "source", text.source_heading, &sources, palette);
-        });
-    }
-
-    /// The chosen filters as chips, each with its remove button, and a chip at the end that
-    /// takes them all off. Nothing when no filter is on.
-    fn filter_bar(&mut self, ui: &mut Ui, palette: &Palette) {
-        if self.view.filters().is_empty() || self.loading() {
-            return;
-        }
-        let text = self.text();
-        let mut removed = None;
-        let mut reset = false;
-        let filters = self.view.filters().to_vec();
-        toolbar(
-            ui,
-            text.filters,
-            palette,
-            |ui| {
-                ScrollArea::horizontal()
-                    .id_salt("filter chips")
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing.x = du(dim::PAD_TIGHT);
-                            for facet in filters {
-                                let (_, name) = facet_label(facet, text, None);
-                                let id = Id::unique(("filter chip", name));
-                                if input_chip(ui, id, name, &(text.remove_filter)(name), palette) {
-                                    removed = Some(facet);
-                                }
-                            }
-                        });
-                    });
-            },
-            |ui| reset = chip(ui, text.reset_filters, ChipColor::Neutral, true, palette).clicked(),
-        );
-        if let Some(facet) = removed {
-            self.view.toggle(facet);
-            self.refilter();
-        }
-        if reset {
-            self.view.clear();
-            self.refilter();
-        }
-    }
-
-    fn list(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
-        let empty = Vec::new();
-        let catalog = self.catalog.clone();
-        let items = catalog.as_ref().map_or(&empty, |catalog| &catalog.items);
-        let loading = self.loading();
-        // While the catalogue is read again, the rows of the old one give way to the skeleton.
-        let indices: &[usize] = if loading { &[] } else { &self.visible };
-        let rows = list::Rows {
-            items,
-            indices,
-            selected: self.selection.as_ref().map(|selection| selection.id.as_str()),
-            sorting: list::sorting_of(&self.view),
-            loading,
-            now,
-            text: self.text(),
-        };
-        match list::show(ui, &rows, &mut self.pictures, palette) {
-            // The selected row pressed again closes the card.
-            Some(list::Event::Select(id)) => {
-                if self
-                    .selection
-                    .as_ref()
-                    .is_some_and(|selection| selection.id == id)
-                {
-                    self.selection = None;
-                } else {
-                    self.select(&id);
-                }
-            }
-            Some(list::Event::Sort(sorting)) => {
-                list::sort_by(&mut self.view, sorting);
-                self.refilter();
-            }
-            None => {}
-        }
-    }
-
-    fn card(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
-        let Some(item) = self.selected_item().cloned() else {
-            return;
-        };
-        let time = ui.input(|input| input.time);
-        let launch = if self.launched.as_deref() == Some(item.id.as_str()) {
-            self.launch.look(time, result_hold())
-        } else {
-            Look::IDLE
-        };
-        let card = detail::Card {
-            item: &item,
-            launch,
-            command: self
-                .selection
-                .as_ref()
-                .and_then(|selection| selection.command.as_deref()),
-            now,
-            text: self.text(),
-        };
-        if let Some(action) = detail::show(ui, &card, &mut self.pictures, palette) {
-            self.act(ui.ctx(), item, action, time);
-        }
     }
 
     /// What a press on the card asks for.
@@ -664,29 +285,6 @@ impl App {
                 .map(|other| other.id.clone())
         });
         self.select(&id.unwrap_or_else(|| format!("pacman:{name}")));
-    }
-
-    /// The tool bar over the list, and the card beside it when something is selected.
-    fn catalogue(&mut self, ui: &mut Ui, now: i64, palette: &Palette) {
-        self.filter_bar(ui, palette);
-        if self.selection.is_some() {
-            let width = ui.available_width().max(1.0);
-            let mut share = 1.0 - self.card / width;
-            let pane = SplitPane {
-                id: Id::unique("list and card"),
-                initial: 1.0 - CARD / width,
-                min_size: PANE_MIN,
-            };
-            let moved = pane.show(ui, &mut share, palette, |ui, side| match side {
-                Pane::Start => self.list(ui, now, palette),
-                Pane::End => self.card(ui, now, palette),
-            });
-            if moved {
-                self.card = (1.0 - share) * width;
-            }
-        } else {
-            self.list(ui, now, palette);
-        }
     }
 
     /// One frame of the whole window.
@@ -747,53 +345,5 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         self.draw(ui);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// Tiles of one group are told apart by their icons, so no two share one.
-    fn distinct(icons: Vec<Icon>) -> bool {
-        let mut names: Vec<&str> = icons.iter().map(|icon| icon.name()).collect();
-        names.sort_unstable();
-        names.dedup();
-        names.len() == icons.len()
-    }
-
-    #[test]
-    fn every_section_has_its_own_glyph_and_name_in_the_theme() {
-        let sections: Vec<Section> = Section::APPS.iter().chain(&Section::OTHER).copied().collect();
-        assert!(distinct(
-            sections.iter().map(|&section| section_icon(section)).collect()
-        ));
-        for section in sections {
-            assert!(!theme_names(Facet::Section(section)).is_empty(), "{section:?}");
-        }
-    }
-
-    #[test]
-    fn sources_show_their_logos_and_the_repositories_that_of_the_distribution() {
-        let pacman = Some(PackageSystem::Pacman);
-        assert_eq!(source_icon(SourceKind::Repo, pacman), icon::LOGO_ARCHLINUX);
-        assert_eq!(
-            source_icon(SourceKind::Repo, Some(PackageSystem::Dpkg)),
-            icon::LOGO_DEBIAN
-        );
-        assert_eq!(source_icon(SourceKind::Repo, None), icon::INVENTORY_2);
-        // Cargo and Rustup both belong to Rust and share its logo; every other source has its own.
-        let others: Vec<Icon> = SourceKind::ALL
-            .iter()
-            .filter(|&&source| source != SourceKind::Rustup)
-            .map(|&source| source_icon(source, pacman))
-            .collect();
-        assert!(distinct(others));
-        assert_eq!(source_icon(SourceKind::Rustup, pacman), icon::LOGO_RUST);
-        assert!(
-            theme_names(Facet::Source(SourceKind::Steam)).is_empty(),
-            "sources never use the theme"
-        );
-        assert!(theme_names(Facet::Origin(Origin::Orphan)).is_empty());
     }
 }
