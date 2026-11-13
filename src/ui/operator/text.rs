@@ -20,22 +20,16 @@ pub fn galley(ui: &Ui, text: RichText) -> Arc<Galley> {
 
 /// Text on one line, cut with an ellipsis at `width`.
 pub fn truncated(ui: &Ui, text: RichText, width: f32) -> Arc<Galley> {
-    WidgetText::from(text).into_galley(
-        ui,
-        Some(TextWrapMode::Truncate),
-        width.max(0.0),
-        FontSelection::Default,
-    )
+    laid_out(ui, text, TextWrapMode::Truncate, width)
 }
 
 /// Text wrapped at `width`, breaking anywhere when a word is longer.
 pub fn wrapped(ui: &Ui, text: RichText, width: f32) -> Arc<Galley> {
-    WidgetText::from(text).into_galley(
-        ui,
-        Some(TextWrapMode::Wrap),
-        width.max(0.0),
-        FontSelection::Default,
-    )
+    laid_out(ui, text, TextWrapMode::Wrap, width)
+}
+
+fn laid_out(ui: &Ui, text: RichText, mode: TextWrapMode, width: f32) -> Arc<Galley> {
+    WidgetText::from(text).into_galley(ui, Some(mode), width.max(0.0), FontSelection::Default)
 }
 
 /// Paints text centred in `rect`, on whole pixels.
