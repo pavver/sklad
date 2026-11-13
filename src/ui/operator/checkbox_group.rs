@@ -198,65 +198,78 @@ impl CheckboxGroup<'_> {
         let selected = item.selected;
         response.widget_info(|| WidgetInfo::selected(egui::Role::CheckBox, true, selected, item.name));
         if ui.is_rect_visible(rect) {
-            let hover = hover_amount(ui, &response);
-            let press = press_amount(ui, &response);
-            let rest = if selected {
-                mix(palette.surface, palette.accent, 0.15)
-            } else {
-                mix(palette.surface, palette.hover, hover)
-            };
-            ui.painter()
-                .rect_filled(rect, 0.0, mix(rest, palette.pressed, press));
-            paint_ripple(ui, &response, rect, true, palette);
-
-            let large = self.icon_size == IconSize::Large && item.icon.is_some();
-            let pad = if large { dim::PAD_TIGHT } else { dim::GUTTER };
-            let mut left = rect.left() + du(pad);
-            let ink = if selected {
-                palette.accent
-            } else {
-                palette.text_primary
-            };
-            if let Some(icon) = &item.icon {
-                let side = du(self.icon_size.du());
-                paint_tile_icon(
-                    ui,
-                    icon,
-                    pos2(left + side / 2.0, rect.center().y),
-                    side,
-                    selected,
-                    palette,
-                );
-                left += side + du(dim::GUTTER);
-            }
-            let boxed = paint_indicator(ui, rect, selected, palette);
-            let mut right = boxed.left() - du(dim::GUTTER);
-            if let Some(count) = item.count {
-                let size = counter_size(ui, count, self.counter_max);
-                let badge = Rect::from_min_size(pos2(right - size.x, rect.center().y - size.y / 2.0), size);
-                paint_counter(ui, badge, count, self.counter_max, Tone::Neutral, palette);
-                right = badge.left() - du(dim::GUTTER);
-            }
-
-            let weight = if selected { BOLD } else { MEDIUM };
-            let name = truncated(
-                ui,
-                weighted(item.name, Type::Body, weight, ink),
-                (right - left).max(0.0),
-            );
-            let name_rect = Rect::from_min_max(pos2(left, rect.top()), pos2(right, rect.bottom()));
-            paint_aligned(ui, name_rect, name, egui::Align::Min, ink);
-
-            let state = if response.is_pointer_button_down_on() {
-                ControlState::Pressed
-            } else if selected {
-                ControlState::Selected
-            } else {
-                ControlState::Idle
-            };
-            paint_border(ui, rect, Outline::of(state, palette), &Look::IDLE, palette);
-            paint_focus_ring(ui, &response, rect, palette);
+            self.paint_tile(ui, rect, &response, item, palette);
         }
         response.on_hover_cursor(CursorIcon::PointingHand).clicked()
+    }
+
+    /// The tile in its state: background, icon, name, counter, indicator, border and focus.
+    fn paint_tile(
+        &self,
+        ui: &Ui,
+        rect: Rect,
+        response: &egui::Response,
+        item: &GroupItem<'_>,
+        palette: &Palette,
+    ) {
+        let selected = item.selected;
+        let hover = hover_amount(ui, response);
+        let press = press_amount(ui, response);
+        let rest = if selected {
+            mix(palette.surface, palette.accent, 0.15)
+        } else {
+            mix(palette.surface, palette.hover, hover)
+        };
+        ui.painter()
+            .rect_filled(rect, 0.0, mix(rest, palette.pressed, press));
+        paint_ripple(ui, response, rect, true, palette);
+
+        let large = self.icon_size == IconSize::Large && item.icon.is_some();
+        let pad = if large { dim::PAD_TIGHT } else { dim::GUTTER };
+        let mut left = rect.left() + du(pad);
+        let ink = if selected {
+            palette.accent
+        } else {
+            palette.text_primary
+        };
+        if let Some(icon) = &item.icon {
+            let side = du(self.icon_size.du());
+            paint_tile_icon(
+                ui,
+                icon,
+                pos2(left + side / 2.0, rect.center().y),
+                side,
+                selected,
+                palette,
+            );
+            left += side + du(dim::GUTTER);
+        }
+        let boxed = paint_indicator(ui, rect, selected, palette);
+        let mut right = boxed.left() - du(dim::GUTTER);
+        if let Some(count) = item.count {
+            let size = counter_size(ui, count, self.counter_max);
+            let badge = Rect::from_min_size(pos2(right - size.x, rect.center().y - size.y / 2.0), size);
+            paint_counter(ui, badge, count, self.counter_max, Tone::Neutral, palette);
+            right = badge.left() - du(dim::GUTTER);
+        }
+
+        let weight = if selected { BOLD } else { MEDIUM };
+        let name = truncated(
+            ui,
+            weighted(item.name, Type::Body, weight, ink),
+            (right - left).max(0.0),
+        );
+        let name_rect = Rect::from_min_max(pos2(left, rect.top()), pos2(right, rect.bottom()));
+        paint_aligned(ui, name_rect, name, egui::Align::Min, ink);
+
+        let state = if response.is_pointer_button_down_on() {
+            ControlState::Pressed
+        } else if selected {
+            ControlState::Selected
+        } else {
+            ControlState::Idle
+        };
+        paint_border(ui, rect, Outline::of(state, palette), &Look::IDLE, palette);
+        paint_focus_ring(ui, response, rect, palette);
     }
 }

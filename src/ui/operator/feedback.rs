@@ -380,7 +380,11 @@ mod tests {
         assert_eq!(shown.presence(10.0 + f64::from(ENTER)), 1.0);
         shown.closing = Some(f64::NAN);
         shown.start_clocks(20.0);
-        assert_eq!(shown.closing, Some(20.0), "a close asked between frames starts now");
+        assert_eq!(
+            shown.closing,
+            Some(20.0),
+            "a close asked between frames starts now"
+        );
         assert_eq!(shown.presence(20.0), 1.0);
         assert_eq!(shown.presence(20.0 + f64::from(ENTER)), 0.0);
     }
@@ -389,7 +393,11 @@ mod tests {
     fn a_toast_waits_while_hovered_and_closes_when_its_time_is_up() {
         let mut waiting = toast(1.0);
         waiting.tick(false, true, 2.0, 3.0);
-        assert_eq!((waiting.left, waiting.closing), (1.0, None), "hovered, it keeps its time");
+        assert_eq!(
+            (waiting.left, waiting.closing),
+            (1.0, None),
+            "hovered, it keeps its time"
+        );
         waiting.tick(false, false, 0.5, 4.0);
         assert_eq!(waiting.closing, None);
         waiting.tick(false, false, 0.5, 5.0);
