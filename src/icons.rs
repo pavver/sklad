@@ -74,25 +74,23 @@ impl IconIndex {
     /// icons of programs, the side bar takes those of categories, places, devices and file
     /// types.
     fn add_theme(&mut self, theme: &Path, theme_order: u32) {
-        let Ok(entries) = fs::read_dir(theme) else {
-            return;
-        };
-        for entry in entries.flatten() {
-            let path = entry.path();
+        for entry in fs::read_dir(theme).into_iter().flatten().flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
             if CONTEXTS.contains(&name.as_str()) {
-                let Ok(sizes) = fs::read_dir(&path) else {
-                    continue;
-                };
-                for size in sizes.flatten() {
-                    let hint = size_in(&size.file_name().to_string_lossy());
-                    self.add_folder(&size.path(), hint, theme_order);
-                }
+                self.add_sizes(&entry.path(), theme_order);
             } else {
                 for context in CONTEXTS {
-                    self.add_folder(&path.join(context), size_in(&name), theme_order);
+                    self.add_folder(&entry.path().join(context), size_in(&name), theme_order);
                 }
             }
+        }
+    }
+
+    /// The size folders inside a context folder, as in `apps/48`.
+    fn add_sizes(&mut self, context: &Path, theme_order: u32) {
+        for size in fs::read_dir(context).into_iter().flatten().flatten() {
+            let hint = size_in(&size.file_name().to_string_lossy());
+            self.add_folder(&size.path(), hint, theme_order);
         }
     }
 
@@ -245,8 +243,99 @@ mod tests {
         assert_eq!(image.map(|i| i.rgba[0]), Some(255));
     }
 
+    fn touch(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+        if let Some(folder) = path.parent() {
+            fs::create_dir_all(folder)?;
+        }
+        fs::write(path, bytes)
+    }
+
+    #[test]
+    fn icons_are_found_in_the_chosen_theme_its_parent_and_the_fallbacks() -> std::io::Result<()> {
+        let base = std::env::temp_dir().join(format!("sklad-icons-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let icons = base.join("usr/share/icons");
+        touch(
+            &base.join("home/.config/kdeglobals"),
+            b"[Icons]\nTheme=Papirus-Dark\n",
+        )?;
+        touch(&icons.join("Papirus-Dark/48x48/apps/gimp.png"), b"")?;
+        touch(&icons.join("hicolor/scalable/apps/gimp.svg"), b"")?;
+        touch(&icons.join("Papirus/apps/64/inkscape.png"), b"")?;
+        touch(
+            &icons.join("hicolor/48x48/categories/applications-games.png"),
+            b"",
+        )?;
+        touch(&icons.join("hicolor/48x48/actions/edit-copy.png"), b"")?;
+        touch(&icons.join("hicolor/48x48/apps/notes.txt"), b"")?;
+        touch(&base.join("usr/share/pixmaps/old.png"), b"")?;
+        let places = Places {
+            home: base.join("home"),
+            pacman_local: base.join("pacman"),
+            dpkg_status: base.join("status"),
+            apt_extended_states: base.join("states"),
+            os_release: base.join("os-release"),
+            root: base.clone(),
+        };
+        let index = IconIndex::build(&places);
+        let found = |name: &str| {
+            index
+                .find(name)
+                .and_then(|path| path.strip_prefix(&base).ok().map(Path::to_path_buf))
+        };
+        let result = [
+            found("gimp"),
+            found("inkscape"),
+            found("applications-games"),
+            found("edit-copy"),
+            found("notes"),
+            found("old"),
+        ];
+        let absolute = index.find(&icons.join("Papirus/apps/64/inkscape.png").to_string_lossy());
+        let _ = fs::remove_dir_all(&base);
+        let path = |text: &str| Some(PathBuf::from(text));
+        assert_eq!(
+            result[0],
+            path("usr/share/icons/Papirus-Dark/48x48/apps/gimp.png"),
+            "the chosen theme first"
+        );
+        assert_eq!(
+            result[1],
+            path("usr/share/icons/Papirus/apps/64/inkscape.png"),
+            "then its light parent"
+        );
+        assert_eq!(
+            result[2],
+            path("usr/share/icons/hicolor/48x48/categories/applications-games.png")
+        );
+        assert_eq!(result[3], None, "actions are not read");
+        assert_eq!(result[4], None, "only pictures count");
+        assert_eq!(result[5], path("usr/share/pixmaps/old.png"));
+        assert!(absolute.is_some(), "a launcher may give a path");
+        Ok(())
+    }
+
+    #[test]
+    fn a_bitmap_is_decoded_with_premultiplied_alpha() -> Result<(), image::ImageError> {
+        let picture = image::RgbaImage::from_pixel(4, 4, image::Rgba([255, 0, 0, 128]));
+        let mut png = std::io::Cursor::new(Vec::new());
+        picture.write_to(&mut png, image::ImageFormat::Png)?;
+        let decoded = decode_bitmap(png.get_ref());
+        assert_eq!(
+            decoded.as_ref().map(|image| image.size),
+            Some([96, 96]),
+            "scaled to the decoded size"
+        );
+        assert_eq!(
+            decoded.map(|image| image.rgba[..4].to_vec()),
+            Some(vec![128, 0, 0, 128])
+        );
+        Ok(())
+    }
+
     #[test]
     fn a_file_that_is_no_image_gives_nothing() {
+        assert!(decode(Path::new("/nonexistent/icon.svg")).is_none());
         assert!(decode_bitmap(b"not an image").is_none());
     }
 }
