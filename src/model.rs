@@ -340,3 +340,27 @@ impl Item {
         self
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_source_has_its_own_kind_and_every_kind_a_source() {
+        let sources = [
+            Source::Repo("extra".to_owned()),
+            Source::Aur,
+            Source::Flatpak,
+            Source::Steam,
+            Source::Cargo,
+            Source::Node,
+            Source::Python,
+            Source::Rustup,
+            Source::LocalDeb,
+            Source::Docker,
+            Source::Manual,
+        ];
+        let kinds: Vec<SourceKind> = sources.iter().map(Source::kind).collect();
+        assert_eq!(kinds, SourceKind::ALL);
+    }
+}
