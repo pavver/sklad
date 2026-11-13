@@ -178,3 +178,45 @@ impl Package {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The section of a package with no launcher, named so its name says nothing, that holds
+    /// `paths`.
+    fn section_of(paths: &[&str]) -> Section {
+        Package {
+            name: "plain".to_owned(),
+            version: String::new(),
+            summary: String::new(),
+            description: String::new(),
+            url: None,
+            licenses: Vec::new(),
+            groups: Vec::new(),
+            depends: Vec::new(),
+            recommends: Vec::new(),
+            provides: Vec::new(),
+            packager: None,
+            installed: None,
+            size: 0,
+            reason: Reason::Explicit,
+            essential: false,
+            files: classify(paths.iter().copied(), &HashSet::new()),
+        }
+        .section_without_window()
+    }
+
+    #[test]
+    fn the_files_of_a_package_tell_its_section() {
+        assert_eq!(section_of(&["usr/share/fonts/TTF/plain.ttf"]), Section::Fonts);
+        assert_eq!(
+            section_of(&["usr/lib/modules/6.1/extra/plain.ko"]),
+            Section::Drivers
+        );
+        assert_eq!(section_of(&["usr/lib/firmware/plain.bin"]), Section::Drivers);
+        assert_eq!(section_of(&["usr/lib/libplain.so"]), Section::Libraries);
+        assert_eq!(section_of(&["usr/share/doc/plain/README"]), Section::Meta);
+        assert_eq!(section_of(&["usr/bin/plain"]), Section::Console);
+    }
+}
