@@ -61,15 +61,15 @@ impl App {
         let empty = Vec::new();
         let catalog = self.catalog.clone();
         let items = catalog.as_ref().map_or(&empty, |catalog| &catalog.items);
-        let loading = self.loading();
-        // While the catalogue is read again, the rows of the old one give way to the skeleton.
-        let indices: &[usize] = if loading { &[] } else { &self.visible };
+        // While the catalogue is read anew, the rows of the old one give way to the skeleton; while
+        // it is read quietly, they stay under the loading bar.
+        let indices: &[usize] = if self.loading() { &[] } else { &self.visible };
         let rows = list::Rows {
             items,
             indices,
             selected: self.selection.as_ref().map(|selection| selection.id.as_str()),
             sorting: list::sorting_of(&self.view),
-            loading,
+            loading: self.scanning.is_some(),
             now,
             text: self.text(),
         };

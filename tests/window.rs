@@ -1427,3 +1427,66 @@ fn a_group_of_filters_folds_and_unfolds() {
     settle(&mut harness);
     assert!(harness.query(tile).is_some());
 }
+
+/// A scanner that gives `first` once, then waits for the test to let each later reading go and
+/// gives `later`.
+fn gated(first: Catalog, later: Catalog) -> (Scanner, std::sync::mpsc::Sender<()>) {
+    let (release, gate) = channel::<()>();
+    let gate = Mutex::new(gate);
+    let first = Mutex::new(Some(first));
+    let scanner: Scanner = Arc::new(move |_| {
+        if let Some(catalog) = first.lock().ok().and_then(|mut first| first.take()) {
+            return catalog;
+        }
+        if let Ok(gate) = gate.lock() {
+            let _ = gate.recv_timeout(Duration::from_secs(10));
+        }
+        later.clone()
+    });
+    (scanner, release)
+}
+
+/// The long catalogue without the packages named.
+fn long_catalog_without(gone: &[&str]) -> Catalog {
+    let mut catalog = long_catalog();
+    catalog
+        .items
+        .retain(|item| !gone.contains(&item.package.as_str()));
+    catalog
+}
+
+#[test]
+fn a_removal_changes_the_list_in_place_while_the_system_is_read_again() {
+    let (scanner, release) = gated(long_catalog(), long_catalog_without(&["p05", "p06"]));
+    let size = Vec2::new(1360.0, 700.0);
+    let mut harness = window_speaking(FakeBackend::new(Outcome::Done), size, scanner, Lang::Uk);
+    open_removal(&mut harness, "Програма 05");
+    confirm(&mut harness);
+    settle(&mut harness);
+    settle(&mut harness);
+    shot(&mut harness, "removed-in-place");
+    assert!(
+        !has_row(&harness, "Програма 05"),
+        "the removed row leaves at once"
+    );
+    assert!(has_row(&harness, "Програма 06"), "the rest waits for the system");
+    assert!(
+        harness.query_all_by_role(Role::CheckBox).next().is_some(),
+        "the filters stay"
+    );
+    assert!(
+        harness
+            .query(By::new().role(Role::ProgressIndicator).label("Loading"))
+            .is_some(),
+        "the table says it is reading"
+    );
+
+    let _ = release.send(());
+    settle(&mut harness);
+    settle(&mut harness);
+    assert!(
+        !has_row(&harness, "Програма 06"),
+        "what the system no longer has leaves too"
+    );
+    assert!(has_row(&harness, "Програма 07"));
+}

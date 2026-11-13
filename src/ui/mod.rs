@@ -42,6 +42,20 @@ struct Selection {
     command: Option<String>,
 }
 
+/// How a reading of the system under way shows itself.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reading {
+    /// The catalogue is read anew: the list and the side bar give way to skeletons.
+    Anew,
+    /// After a removal: the catalogue stays on screen, and the result updates it in place.
+    Quietly,
+}
+
+struct Scanning {
+    result: Receiver<Catalog>,
+    reading: Reading,
+}
+
 /// A launch under way: whose it is and what its command reports.
 struct Launching {
     title: String,
@@ -52,7 +66,7 @@ struct Launching {
 pub struct App {
     backend: Arc<dyn Backend>,
     scanner: Scanner,
-    scanning: Option<Receiver<Catalog>>,
+    scanning: Option<Scanning>,
     catalog: Option<Arc<Catalog>>,
     view: View,
     visible: Vec<usize>,
@@ -123,7 +137,7 @@ impl App {
             card: CARD,
             choice,
         };
-        app.rescan(ctx);
+        app.rescan(ctx, Reading::Anew);
         app
     }
 
@@ -139,10 +153,11 @@ impl App {
     fn switch_language(&mut self, ctx: &egui::Context, lang: Lang) {
         self.choice.set(lang);
         ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.text().app_name.to_owned()));
-        self.rescan(ctx);
+        self.rescan(ctx, Reading::Anew);
     }
 
-    fn rescan(&mut self, ctx: &egui::Context) {
+    /// Reads the system again on a background thread. A reading started later supersedes this one.
+    fn rescan(&mut self, ctx: &egui::Context, reading: Reading) {
         let (sender, receiver) = channel();
         let scanner = Arc::clone(&self.scanner);
         let lang = self.choice.lang;
@@ -151,8 +166,13 @@ impl App {
             let _ = sender.send(scanner(lang));
             repaint.request_repaint();
         });
-        self.scanning = Some(receiver);
-        self.refresh.start(ctx.input(|input| input.time));
+        self.scanning = Some(Scanning {
+            result: receiver,
+            reading,
+        });
+        if reading == Reading::Anew {
+            self.refresh.start(ctx.input(|input| input.time));
+        }
     }
 
     fn refilter(&mut self) {
@@ -164,14 +184,19 @@ impl App {
     }
 
     fn receive_scan(&mut self, now: f64) {
-        let finished = self
-            .scanning
-            .as_ref()
-            .and_then(|receiver| receiver.try_recv().ok());
-        if let Some(catalog) = finished {
-            self.catalog = Some(Arc::new(catalog));
+        let Some(scanning) = &self.scanning else {
+            return;
+        };
+        if let Ok(catalog) = scanning.result.try_recv() {
+            let reading = scanning.reading;
             self.scanning = None;
-            self.refresh.finish(Outcome::Success, now);
+            self.catalog = Some(Arc::new(match (&self.catalog, reading) {
+                (Some(old), Reading::Quietly) => old.updated(catalog),
+                _ => catalog,
+            }));
+            if reading == Reading::Anew {
+                self.refresh.finish(Outcome::Success, now);
+            }
             self.refilter();
             let selected = self.selection.as_ref().map(|selection| selection.id.clone());
             self.selection = None;
@@ -247,10 +272,23 @@ impl App {
             });
     }
 
-    /// Whether the catalogue is being read, the first time or again: the list and the side bar
-    /// show skeletons then, and the filters are hidden.
+    /// Whether the catalogue is being read anew, the first time or again: the list and the side
+    /// bar show skeletons then, and the filters are hidden.
     fn loading(&self) -> bool {
-        self.catalog.is_none() || self.scanning.is_some()
+        self.catalog.is_none()
+            || self
+                .scanning
+                .as_ref()
+                .is_some_and(|scanning| scanning.reading == Reading::Anew)
+    }
+
+    /// Takes out of the catalogue what a removal took, and reads the system quietly for the rest.
+    fn removed(&mut self, ctx: &egui::Context, gone: &[String]) {
+        if let Some(catalog) = &self.catalog {
+            self.catalog = Some(Arc::new(catalog.without(gone)));
+            self.refilter();
+        }
+        self.rescan(ctx, Reading::Quietly);
     }
 
     /// What a press on the card asks for.
@@ -330,11 +368,11 @@ impl App {
 
         let exit = self.dialog.as_mut().and_then(|dialog| dialog.show(&ctx, palette));
         match exit {
-            Some(Exit::Removed(title)) => {
+            Some(Exit::Removed { title, gone }) => {
                 self.dialog = None;
                 self.selection = None;
                 self.toasts.message(Tone::Success, (self.text().removed)(&title));
-                self.rescan(&ctx);
+                self.removed(&ctx, &gone);
             }
             Some(Exit::Cancelled) => self.dialog = None,
             None => {}

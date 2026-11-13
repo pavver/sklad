@@ -37,7 +37,11 @@ enum Phase {
 
 pub enum Exit {
     Cancelled,
-    Removed(String),
+    /// The removal succeeded: the title of the item, and the ids of every item it took.
+    Removed {
+        title: String,
+        gone: Vec<String>,
+    },
 }
 
 pub struct Dialog {
@@ -342,7 +346,10 @@ impl Dialog {
             .succeeded
             .is_some_and(|at| now - at >= f64::from(dialog_hold()))
         {
-            return Some(Exit::Removed(self.item.title.clone()));
+            return Some(Exit::Removed {
+                title: self.item.title.clone(),
+                gone: gone(&self.item, self.plan.as_ref(), &self.catalog.items),
+            });
         }
         let confirmed = !self.needs_risk_confirmation() || self.confirmed_risk;
         let ready = matches!(self.phase, Phase::Ready { spec: Some(_), .. });
@@ -384,6 +391,19 @@ impl Dialog {
     }
 }
 
+/// The ids of the items a successful removal of `item` took: for a system package, every package
+/// of the plan, which the package manager confirmed; otherwise the item itself.
+fn gone(item: &Item, plan: Option<&Plan>, items: &[Item]) -> Vec<String> {
+    let (Removal::Package(_), Some(plan)) = (&item.removal, plan) else {
+        return vec![item.id.clone()];
+    };
+    items
+        .iter()
+        .filter(|other| matches!(other.removal, Removal::Package(_)) && plan.remove.contains(&other.package))
+        .map(|other| other.id.clone())
+        .collect()
+}
+
 /// What the dialog says about a removal that is not one of the system packages: who removes
 /// it, and what goes. `None` for system packages and for what cannot be removed.
 fn other_note(removal: &Removal, text: &Text) -> Option<String> {
@@ -422,7 +442,7 @@ fn lines(items: impl Iterator<Item = String>) -> String {
 mod tests {
     use super::*;
     use crate::i18n::Lang;
-    use crate::model::{DockerObject, DockerPart};
+    use crate::model::{DockerObject, DockerPart, Source};
     use std::path::PathBuf;
 
     #[test]
@@ -489,5 +509,37 @@ mod tests {
         notes.sort_unstable();
         notes.dedup();
         assert_eq!(notes.len(), others.len(), "each says something of its own");
+    }
+
+    #[test]
+    fn a_removal_takes_its_plan_or_else_only_itself() {
+        let pacman = Removal::Package(crate::model::PackageSystem::Pacman);
+        let package = |name: &str| {
+            crate::scan::blank(
+                format!("pacman:{name}"),
+                name.to_owned(),
+                Source::Repo("extra".to_owned()),
+                pacman.clone(),
+            )
+        };
+        let flatpak = crate::scan::blank(
+            "flatpak:gimp".to_owned(),
+            "gimp".to_owned(),
+            Source::Flatpak,
+            Removal::Flatpak {
+                app_id: "gimp".to_owned(),
+                scope: crate::model::FlatpakScope::User,
+            },
+        );
+        let items = [package("gimp"), package("babl"), package("vim"), flatpak.clone()];
+        let plan = Plan {
+            remove: vec!["babl".to_owned(), "gimp".to_owned()],
+            ..Plan::default()
+        };
+        assert_eq!(
+            gone(&items[0], Some(&plan), &items),
+            ["pacman:gimp", "pacman:babl"]
+        );
+        assert_eq!(gone(&flatpak, None, &items), ["flatpak:gimp"]);
     }
 }

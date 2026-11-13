@@ -80,7 +80,7 @@ fn capture(program: &str, args: &[&str]) -> String {
 }
 
 /// A blank item of a source; each scanner fills in what it knows.
-fn blank(id: String, package: String, source: Source, removal: Removal) -> Item {
+pub(crate) fn blank(id: String, package: String, source: Source, removal: Removal) -> Item {
     Item {
         id,
         title: package.clone(),

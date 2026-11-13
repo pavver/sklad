@@ -12,7 +12,7 @@ use super::operator::search_field::SearchField;
 use super::operator::state::result_hold;
 use super::operator::theme_toggle::theme_toggle;
 use super::operator::tokens::{Palette, dim, du};
-use super::{App, format};
+use super::{App, Reading, format};
 
 /// The width in DU the search in the middle of the header would like.
 const SEARCH_WIDTH: f32 = 80.0;
@@ -25,7 +25,7 @@ impl App {
         // What the list shows, and how much it takes: all of it, or the part the filters and the
         // search leave.
         let subtitle = match &self.catalog {
-            Some(_) if self.scanning.is_some() => text.reading_system.to_owned(),
+            Some(_) if self.loading() => text.reading_system.to_owned(),
             Some(catalog) => {
                 let shown = &self.visible;
                 let size: u64 = shown.iter().filter_map(|&index| catalog.items[index].size).sum();
@@ -91,8 +91,8 @@ impl App {
                 language = choice.and_then(|index| Lang::ALL.get(index).copied());
             },
         );
-        if refresh && self.scanning.is_none() {
-            self.rescan(ui.ctx());
+        if refresh && !self.loading() {
+            self.rescan(ui.ctx(), Reading::Anew);
         }
         if query.is_some() {
             self.refilter();
