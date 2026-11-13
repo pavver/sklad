@@ -398,43 +398,11 @@ fn manual_items(
     owned_opt: &HashSet<String>,
     context: &Context<'_>,
 ) -> ManualScan {
-    let home = &context.places.home;
-    let mut items: Vec<Item> = Vec::new();
-    let mut by_program: HashMap<String, PathBuf> = HashMap::new();
-
-    let user_bins = [
-        home.join(".local/bin"),
-        home.join(".cargo/bin"),
-        home.join("go/bin"),
-        home.join(".deno/bin"),
-    ];
-    for path in user_bins.iter().flat_map(|dir| loose::files_in(dir)) {
-        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
-        let in_a_folder = claimed_folders.iter().any(|folder| canonical.starts_with(folder));
-        if claimed.contains(&path) || in_a_folder {
-            continue;
-        }
-        let name = path.file_name().map(|n| n.to_string_lossy().into_owned());
-        by_program.extend(name.map(|name| (name, path.clone())));
-        items.push(manual_file(&path, Access::User, context.lang.text()));
-    }
-    for path in loose::files_in(&context.places.system_path("usr/local/bin")) {
-        items.push(manual_file(&path, Access::Root, context.lang.text()));
-    }
-    for path in loose::directories_in(&context.places.system_path("opt")) {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        if !owned_opt.contains(&name) {
-            let mut item = manual_file(&path, Access::Root, context.lang.text());
-            item.section = Section::Utilities;
-            items.push(item);
-        }
-    }
-
+    let (mut items, by_program) = user_files(claimed, claimed_folders, context);
+    items.extend(system_files(owned_opt, context));
     let mut attached: HashMap<String, Vec<Launcher>> = HashMap::new();
-    for path in loose::launchers_below(&home.join(".local/share/applications")) {
+    let folder = context.places.home.join(".local/share/applications");
+    for path in loose::launchers_below(&folder) {
         let Some(launcher) = desktop::read(&path, context.lang) else {
             continue;
         };
@@ -443,27 +411,79 @@ fn manual_items(
             continue;
         }
         let program = desktop::exec_program(&exec).unwrap_or_default();
-        let base = Path::new(&program)
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned());
-        if let Some(owner) = base.as_ref().and_then(|name| owned_programs.get(name)) {
-            attached.entry(owner.clone()).or_default().push(launcher);
-            continue;
-        }
-        let target =
-            loose::find_program(&program, &by_program).map(|file| format!("file:{}", file.display()));
-        let existing = target.and_then(|id| items.iter_mut().find(|item| item.id == id));
-        match existing {
-            Some(item) => join_launcher(item, &launcher, &path, context),
-            None => {
-                let mut item = manual_file(&path, Access::User, context.lang.text());
-                item.description = (context.lang.text().loose_launcher)(&path.display().to_string());
-                join_launcher(&mut item, &launcher, &path, context);
-                items.push(item);
-            }
+        match owner_of(&program, owned_programs) {
+            Some(owner) => attached.entry(owner.clone()).or_default().push(launcher),
+            None => place_launcher(&mut items, &launcher, &path, &program, &by_program, context),
         }
     }
     ManualScan { items, attached }
+}
+
+/// Programs in the bin folders of the home that nothing else claims, and their file names.
+fn user_files(
+    claimed: &HashSet<PathBuf>,
+    claimed_folders: &[PathBuf],
+    context: &Context<'_>,
+) -> (Vec<Item>, HashMap<String, PathBuf>) {
+    let home = &context.places.home;
+    let folders = [".local/bin", ".cargo/bin", "go/bin", ".deno/bin"].map(|folder| home.join(folder));
+    let mut items = Vec::new();
+    let mut by_program = HashMap::new();
+    for path in folders.iter().flat_map(|dir| loose::files_in(dir)) {
+        let canonical = path.canonicalize().unwrap_or_else(|_| path.clone());
+        let in_a_folder = claimed_folders.iter().any(|folder| canonical.starts_with(folder));
+        if claimed.contains(&path) || in_a_folder {
+            continue;
+        }
+        by_program.extend(file_name(&path).map(|name| (name, path.clone())));
+        items.push(manual_file(&path, Access::User, context.lang.text()));
+    }
+    (items, by_program)
+}
+
+/// Programs in `/usr/local/bin`, and folders in `/opt` that no package owns.
+fn system_files(owned_opt: &HashSet<String>, context: &Context<'_>) -> Vec<Item> {
+    let text = context.lang.text();
+    let programs = loose::files_in(&context.places.system_path("usr/local/bin"))
+        .into_iter()
+        .map(|path| manual_file(&path, Access::Root, text));
+    let folders = loose::directories_in(&context.places.system_path("opt"))
+        .into_iter()
+        .filter(|path| !file_name(path).is_some_and(|name| owned_opt.contains(&name)))
+        .map(|path| Item {
+            section: Section::Utilities,
+            ..manual_file(&path, Access::Root, text)
+        });
+    programs.chain(folders).collect()
+}
+
+fn file_name(path: &Path) -> Option<String> {
+    path.file_name().map(|name| name.to_string_lossy().into_owned())
+}
+
+/// The package that owns the program a launcher starts.
+fn owner_of<'a>(program: &str, owned_programs: &'a HashMap<String, String>) -> Option<&'a String> {
+    file_name(Path::new(program)).and_then(|name| owned_programs.get(&name))
+}
+
+/// A launcher of no package joins the loose file it starts, or becomes an entry of its own.
+fn place_launcher(
+    items: &mut Vec<Item>,
+    launcher: &Launcher,
+    path: &Path,
+    program: &str,
+    by_program: &HashMap<String, PathBuf>,
+    context: &Context<'_>,
+) {
+    let target = loose::find_program(program, by_program).map(|file| format!("file:{}", file.display()));
+    if let Some(item) = target.and_then(|id| items.iter_mut().find(|item| item.id == id)) {
+        join_launcher(item, launcher, path, context);
+        return;
+    }
+    let mut item = manual_file(path, Access::User, context.lang.text());
+    item.description = (context.lang.text().loose_launcher)(&path.display().to_string());
+    join_launcher(&mut item, launcher, path, context);
+    items.push(item);
 }
 
 struct ManualScan {
