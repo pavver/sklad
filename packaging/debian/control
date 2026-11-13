@@ -1,0 +1,16 @@
+Package: sklad
+Version: @VERSION@-1
+Architecture: amd64
+Maintainer: pavver <https://github.com/pavver>
+Installed-Size: @SIZE@
+Depends: libc6, libgcc-s1, libglib2.0-bin, libvulkan1, libwayland-client0, libxkbcommon0, apt, pkexec | policykit-1, xdg-utils
+Recommends: mesa-vulkan-drivers
+Suggests: flatpak, steam-installer
+Section: admin
+Priority: optional
+Homepage: https://pavver.github.io/sklad/
+Description: Catalogue of everything installed, with safe removal
+ Sklad lists apt packages, Flatpak apps, Steam games, Rust toolchains,
+ Cargo, npm and Python tools and loose files in one list, sorted by last
+ launch, and removes each entry through the manager that installed it,
+ with the exact command shown before it runs.

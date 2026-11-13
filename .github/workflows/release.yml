@@ -1,7 +1,8 @@
 name: Release
 
-# A tag `vX.Y.Z` builds the pacman package, publishes it as a GitHub release, and refreshes the site
-# on GitHub Pages: the project page and the pacman repository under /x86_64/.
+# A tag `vX.Y.Z` builds the pacman and Debian packages, publishes them as a GitHub release, and
+# refreshes the site on GitHub Pages: the project page, the pacman repository under /x86_64/ and
+# the apt repository under /debian/.
 
 on:
   push:
@@ -18,7 +19,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  debian:
+    runs-on: ubuntu-24.04
+    # The oldest supported Debian, so the C library the program needs is there on newer systems.
+    container: rust:1-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the Debian package
+        run: scripts/build_deb.sh
+      - name: Signed apt repository
+        env:
+          GPG_KEY: ${{ secrets.PACKAGER_GPG_KEY }}
+        run: |
+          # apt refuses an unsigned repository, so an unsigned build stops here.
+          test -n "$GPG_KEY" || { echo "The PACKAGER_GPG_KEY secret is missing"; exit 1; }
+          apt-get update -qq && apt-get install -y -qq apt-utils gnupg
+          echo "$GPG_KEY" | gpg --batch --import
+          mkdir -p repository
+          cp target/debian/*.deb repository/
+          scripts/apt_repository.sh repository
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debian
+          path: repository
+
   package:
+    needs: debian
     runs-on: ubuntu-24.04
     container: archlinux:base-devel
     steps:
@@ -55,6 +81,10 @@ jobs:
           for link in sklad.db sklad.files sklad.db.sig sklad.files.sig; do
             if [ -L "$link" ]; then cp --remove-destination "$(readlink "$link")" "$link"; fi
           done
+      - uses: actions/download-artifact@v4
+        with:
+          name: debian
+          path: pages/debian
       - name: Project page
         run: |
           # The page is built from Operator UI web components; it brings its own images and key.
@@ -67,7 +97,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          gh release create "$GITHUB_REF_NAME" build/*.pkg.tar.zst* \
+          gh release create "$GITHUB_REF_NAME" build/*.pkg.tar.zst* pages/debian/*.deb \
             --title "Sklad ${GITHUB_REF_NAME#v}" --generate-notes --verify-tag
       - uses: actions/upload-pages-artifact@v3
         with:
