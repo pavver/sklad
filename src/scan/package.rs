@@ -58,52 +58,72 @@ fn python_record(path: &str) -> Option<&str> {
 pub fn classify<'a>(paths: impl IntoIterator<Item = &'a str>, running: &HashSet<String>) -> Files {
     let mut facts = Files::default();
     for path in paths {
-        if let Some(rest) = path.strip_prefix("opt/") {
-            let root = rest.split('/').next().unwrap_or_default();
-            if !root.is_empty() && !facts.opt_roots.iter().any(|known| known == root) {
-                facts.opt_roots.push(root.to_owned());
-            }
-        }
-        if let Some(rest) = path.strip_prefix("usr/lib/node_modules/") {
-            let depth = if rest.starts_with('@') { 2 } else { 1 };
-            let root = rest.split('/').take(depth).collect::<Vec<_>>().join("/");
-            if !root.is_empty() && !facts.node_roots.contains(&root) {
-                facts.node_roots.push(root);
-            }
-        }
-        if let Some(record) = python_record(path)
-            && !facts.python_records.iter().any(|known| known == record)
-        {
-            facts.python_records.push(record.to_owned());
-        }
-        if path.ends_with('/') {
-            continue;
-        }
-        if !path.starts_with("usr/share/licenses/") && !path.starts_with("usr/share/doc/") {
-            facts.has_payload = true;
-        }
-        if running.contains(&format!("/{path}")) {
-            facts.running = true;
-        }
-        if let Some(name) = path.strip_prefix("usr/share/applications/") {
-            if name.ends_with(".desktop") && !name.contains('/') {
-                facts.launchers.push(path.to_owned());
-            }
-        } else if path.starts_with("usr/share/metainfo/") {
-            if path.ends_with(".xml") {
-                facts.metainfo.push(path.to_owned());
-            }
-        } else if let Some(name) = path.strip_prefix("usr/bin/") {
-            facts.programs.push(name.to_owned());
-        } else if path.starts_with("usr/share/fonts/") {
-            facts.has_fonts = true;
-        } else if path.starts_with("usr/lib/modules/") || path.starts_with("usr/lib/firmware/") {
-            facts.has_kernel_parts = true;
-        } else if !path.starts_with("usr/share/licenses/") && !path.starts_with("usr/share/doc/") {
-            facts.has_other_data = true;
+        facts.note_roots(path);
+        if !path.ends_with('/') {
+            facts.note_file(path, running);
         }
     }
     facts
+}
+
+fn push_new(list: &mut Vec<String>, value: &str) {
+    if !value.is_empty() && !list.iter().any(|known| known == value) {
+        list.push(value.to_owned());
+    }
+}
+
+fn is_documentation(path: &str) -> bool {
+    path.starts_with("usr/share/licenses/") || path.starts_with("usr/share/doc/")
+}
+
+impl Files {
+    /// The folders that stand for the package elsewhere: in `/opt`, among the global Node
+    /// modules, and among the Python records.
+    fn note_roots(&mut self, path: &str) {
+        if let Some(rest) = path.strip_prefix("opt/") {
+            push_new(&mut self.opt_roots, rest.split('/').next().unwrap_or_default());
+        }
+        if let Some(rest) = path.strip_prefix("usr/lib/node_modules/") {
+            let depth = if rest.starts_with('@') { 2 } else { 1 };
+            push_new(
+                &mut self.node_roots,
+                &rest.split('/').take(depth).collect::<Vec<_>>().join("/"),
+            );
+        }
+        if let Some(record) = python_record(path) {
+            push_new(&mut self.python_records, record);
+        }
+    }
+
+    /// What one file says about the package.
+    fn note_file(&mut self, path: &str, running: &HashSet<String>) {
+        self.has_payload |= !is_documentation(path);
+        self.running |= running.contains(&format!("/{path}"));
+        if let Some(name) = path.strip_prefix("usr/share/applications/") {
+            if name.ends_with(".desktop") && !name.contains('/') {
+                self.launchers.push(path.to_owned());
+            }
+        } else if path.starts_with("usr/share/metainfo/") {
+            if path.ends_with(".xml") {
+                self.metainfo.push(path.to_owned());
+            }
+        } else if let Some(name) = path.strip_prefix("usr/bin/") {
+            self.programs.push(name.to_owned());
+        } else {
+            self.note_data(path);
+        }
+    }
+
+    /// A file that is neither a launcher, nor metadata, nor a program.
+    fn note_data(&mut self, path: &str) {
+        if path.starts_with("usr/share/fonts/") {
+            self.has_fonts = true;
+        } else if path.starts_with("usr/lib/modules/") || path.starts_with("usr/lib/firmware/") {
+            self.has_kernel_parts = true;
+        } else if !is_documentation(path) {
+            self.has_other_data = true;
+        }
+    }
 }
 
 impl Package {
