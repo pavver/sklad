@@ -27,8 +27,8 @@ pub enum Action {
 /// How many neighbours are listed before the list is cut.
 const LINK_LIMIT: usize = 60;
 
-fn removal_note(item: &Item, text: &Text) -> String {
-    let note = match &item.removal {
+fn removal_note(removal: &Removal, text: &Text) -> String {
+    let note = match removal {
         Removal::Package(system) => return (text.by_package)(system.manager()),
         Removal::Flatpak { .. } => text.by_flatpak,
         Removal::Steam { .. } => text.by_steam,
@@ -131,53 +131,55 @@ fn title_block(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &
 }
 
 fn facts(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
+    let list = fact_list(card);
+    property_list(ui, Id::unique(("facts", &card.item.id)), &list, palette);
+}
+
+/// The facts of the card, each when the entry has it.
+fn fact_list<'a>(card: &Card<'a>) -> Vec<Property<'a>> {
     let item = card.item;
     let text = card.text;
-    let mut list = Vec::new();
-    let plain = |label, value: String| Property {
-        label,
-        value,
-        copy: None,
+    let installed = |at| format!("{} ({})", format::date(at, text), format::ago(at, card.now, text));
+    let reason = |reason| match reason {
+        Reason::Explicit => text.reason_explicit.to_owned(),
+        Reason::Dependency => text.reason_dependency.to_owned(),
     };
-    if !item.version.is_empty() {
-        list.push(plain(text.key_version, item.version.clone()));
-    }
-    if item.package != item.title {
-        list.push(plain(text.key_package, item.package.clone()));
-    }
-    if !item.licenses.is_empty() {
-        list.push(plain(text.key_license, item.licenses.join(", ")));
-    }
-    if let Some(developer) = &item.developer {
-        list.push(plain(text.key_developer, developer.clone()));
-    }
-    if let Some(size) = item.size {
-        list.push(plain(text.key_size, format::size(size, text)));
-    }
-    if let Some(installed) = item.installed {
-        let when = format!(
-            "{} ({})",
-            format::date(installed, text),
-            format::ago(installed, card.now, text)
-        );
-        list.push(plain(text.key_installed, when));
-    }
-    if let Some(reason) = item.reason {
-        let why = match reason {
-            Reason::Explicit => text.reason_explicit,
-            Reason::Dependency => text.reason_dependency,
-        };
-        list.push(plain(text.key_reason, why.to_owned()));
-    }
-    list.push(plain(
-        text.key_launch,
-        format::usage_detail(item.usage, card.now, text),
-    ));
-    if !item.groups.is_empty() {
-        list.push(plain(text.key_groups, item.groups.join(", ")));
-    }
-    list.push(plain(text.key_removal, removal_note(item, text)));
-    property_list(ui, Id::unique(("facts", &item.id)), &list, palette);
+    let rows = [
+        (
+            text.key_version,
+            Some(item.version.clone()).filter(|version| !version.is_empty()),
+        ),
+        (
+            text.key_package,
+            Some(item.package.clone()).filter(|package| *package != item.title),
+        ),
+        (
+            text.key_license,
+            Some(item.licenses.join(", ")).filter(|list| !list.is_empty()),
+        ),
+        (text.key_developer, item.developer.clone()),
+        (text.key_size, item.size.map(|size| format::size(size, text))),
+        (text.key_installed, item.installed.map(installed)),
+        (text.key_reason, item.reason.map(reason)),
+        (
+            text.key_launch,
+            Some(format::usage_detail(item.usage, card.now, text)),
+        ),
+        (
+            text.key_groups,
+            Some(item.groups.join(", ")).filter(|list| !list.is_empty()),
+        ),
+        (text.key_removal, Some(removal_note(&item.removal, text))),
+    ];
+    rows.into_iter()
+        .filter_map(|(label, value)| {
+            value.map(|value| Property {
+                label,
+                value,
+                copy: None,
+            })
+        })
+        .collect()
 }
 
 /// The word for one kind of Docker object.
@@ -236,10 +238,7 @@ fn command_block(ui: &mut Ui, card: &Card<'_>, palette: &Palette) {
 }
 
 pub fn show(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Palette) -> Option<Action> {
-    let item = card.item;
-    let text = card.text;
     let mut action = None;
-    let removable = !matches!(item.removal, Removal::Unavailable { .. });
     ui.painter().rect_filled(ui.max_rect(), 0.0, palette.surface);
     ScrollArea::vertical()
         .id_salt("card")
@@ -252,56 +251,126 @@ pub fn show(ui: &mut Ui, card: &Card<'_>, pictures: &mut Pictures, palette: &Pal
                     if title_block(ui, card, pictures, palette) {
                         action = Some(Action::Close);
                     }
-                    if !item.summary.is_empty() {
-                        wrapped(ui, item.summary.clone(), Type::Body, palette.text_primary);
+                    if !card.item.summary.is_empty() {
+                        wrapped(ui, card.item.summary.clone(), Type::Body, palette.text_primary);
                     }
-                    ui.horizontal_wrapped(|ui| {
-                        if item.launch.is_some()
-                            && ActionButton::new(text.launch)
-                                .icon(icon::PLAY_ARROW)
-                                .look(card.launch)
-                                .show(ui, palette)
-                                .clicked()
-                        {
-                            action = Some(Action::Launch);
-                        }
-                        let remove = ActionButton::new(text.remove)
-                            .icon(icon::DELETE)
-                            .dangerous(true)
-                            .enabled(removable)
-                            .show(ui, palette);
-                        if remove.clicked() {
-                            action = Some(Action::Remove);
-                        }
-                        if let Some(url) = &item.homepage
-                            && ActionButton::new(text.site)
-                                .icon(icon::OPEN_IN_NEW)
-                                .show(ui, palette)
-                                .clicked()
-                        {
-                            action = Some(Action::Open(url.clone()));
-                        }
-                    });
-                    facts(ui, card, palette);
-                    if !item.description.is_empty() && item.description != item.summary {
-                        section_title(ui, text.heading_description, palette);
-                        wrapped(ui, item.description.clone(), Type::Body, palette.text_secondary);
+                    if let Some(asked) = action_buttons(ui, card, palette) {
+                        action = Some(asked);
                     }
-                    docker_parts(ui, card, palette);
-                    if item.launchers.len() > 1 {
-                        section_title(ui, text.heading_launchers, palette);
-                        wrapped(ui, item.launchers.join(", "), Type::Body, palette.text_secondary);
-                    }
-                    command_block(ui, card, palette);
-                    if !item.required_by.is_empty() {
-                        section_title(ui, &(text.required_by)(item.required_by.len()), palette);
-                        links(ui, &item.required_by, &mut action, text, palette);
-                    }
-                    if !item.depends.is_empty() {
-                        section_title(ui, &(text.depends_on)(item.depends.len()), palette);
-                        links(ui, &item.depends, &mut action, text, palette);
-                    }
+                    sections(ui, card, &mut action, palette);
                 });
         });
     action
+}
+
+/// Launch, Remove and the website, each when the entry has it.
+fn action_buttons(ui: &mut Ui, card: &Card<'_>, palette: &Palette) -> Option<Action> {
+    let item = card.item;
+    let text = card.text;
+    let mut action = None;
+    ui.horizontal_wrapped(|ui| {
+        if item.launch.is_some()
+            && ActionButton::new(text.launch)
+                .icon(icon::PLAY_ARROW)
+                .look(card.launch)
+                .show(ui, palette)
+                .clicked()
+        {
+            action = Some(Action::Launch);
+        }
+        let removable = !matches!(item.removal, Removal::Unavailable { .. });
+        let remove = ActionButton::new(text.remove)
+            .icon(icon::DELETE)
+            .dangerous(true)
+            .enabled(removable)
+            .show(ui, palette);
+        if remove.clicked() {
+            action = Some(Action::Remove);
+        }
+        if let Some(url) = &item.homepage
+            && ActionButton::new(text.site)
+                .icon(icon::OPEN_IN_NEW)
+                .show(ui, palette)
+                .clicked()
+        {
+            action = Some(Action::Open(url.clone()));
+        }
+    });
+    action
+}
+
+/// Everything under the buttons: the facts, the description, the parts, the launchers, the
+/// command and the links to other entries.
+fn sections(ui: &mut Ui, card: &Card<'_>, action: &mut Option<Action>, palette: &Palette) {
+    let item = card.item;
+    let text = card.text;
+    facts(ui, card, palette);
+    if !item.description.is_empty() && item.description != item.summary {
+        section_title(ui, text.heading_description, palette);
+        wrapped(ui, item.description.clone(), Type::Body, palette.text_secondary);
+    }
+    docker_parts(ui, card, palette);
+    if item.launchers.len() > 1 {
+        section_title(ui, text.heading_launchers, palette);
+        wrapped(ui, item.launchers.join(", "), Type::Body, palette.text_secondary);
+    }
+    command_block(ui, card, palette);
+    let linked = [
+        (&item.required_by, text.required_by),
+        (&item.depends, text.depends_on),
+    ];
+    for (names, heading) in linked {
+        if !names.is_empty() {
+            section_title(ui, &heading(names.len()), palette);
+            links(ui, names, action, text, palette);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Lang;
+    use crate::model::{FlatpakScope, PackageSystem};
+
+    #[test]
+    fn every_way_of_removal_has_its_own_note() {
+        let text = Lang::En.text();
+        let removals = [
+            Removal::Package(PackageSystem::Pacman),
+            Removal::Flatpak {
+                app_id: String::new(),
+                scope: FlatpakScope::User,
+            },
+            Removal::Steam {
+                app_id: String::new(),
+            },
+            Removal::Cargo { name: String::new() },
+            Removal::Docker { parts: Vec::new() },
+            Removal::Manager {
+                name: String::new(),
+                argv: Vec::new(),
+                access: Access::User,
+            },
+            Removal::Unavailable {
+                reason: String::new(),
+            },
+            Removal::Files {
+                paths: Vec::new(),
+                access: Access::User,
+            },
+            Removal::Files {
+                paths: Vec::new(),
+                access: Access::Root,
+            },
+        ];
+        let mut notes: Vec<String> = removals
+            .iter()
+            .map(|removal| removal_note(removal, text))
+            .collect();
+        assert!(notes[0].contains("pacman"), "{}", notes[0]);
+        notes.sort_unstable();
+        notes.dedup();
+        assert_eq!(notes.len(), removals.len());
+    }
 }
