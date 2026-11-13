@@ -25,6 +25,7 @@ Reviewed components that sklad uses with a departure the maintainer agreed to:
 
 * `CheckboxGroup` ([src/ui/operator/checkbox_group.rs](src/ui/operator/checkbox_group.rs)): the filters of the side bar.
   It is used synchronously, and each tile carries a neutral `Counter` before its indicator box, which the specification does not have yet.
+  The tiles of sections and sources show the icon of the system icon theme in its own colours, not a Material Symbols glyph; see [Icons](#icons).
 
 Their specifications may still change, so expect to rework them when the design system marks them Reviewed.
 
@@ -55,6 +56,10 @@ Their specifications may still change, so expect to rework them when the design 
 * Use Material Symbols Sharp.
   Icons of the design system come from the tokens crate; any other one is imported into [assets/icons](assets/icons) through [assets/icons/icons.toml](assets/icons/icons.toml) and [scripts/import_icons.py](scripts/import_icons.py).
 * `python3 scripts/import_icons.py --check` must pass.
+* Deliberate departure: the side-bar tiles of sections and sources show the matching icon of the system icon theme (for example `applications-graphics`, `docker`), in its own colours.
+  The person finds a section by the same picture as in the menu of their desktop, which matters more here than a uniform set.
+  The Material Symbols glyph stays as the fallback when the theme has no such icon; the origin tiles always use Material Symbols.
+  Do not extend this to other components without the maintainer's agreement.
 
 ## Behavior
 

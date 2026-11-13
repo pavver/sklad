@@ -182,6 +182,7 @@ fn catalog() -> Catalog {
             node("systemd", &[], Reason::Dependency, false),
         ]),
         system: Some(PackageSystem::Pacman),
+        ..Catalog::default()
     }
 }
 
@@ -693,9 +694,7 @@ fn pictures_of_the_real_system() {
         sleep(Duration::from_millis(5));
     }
     shot(&mut harness, "real-01-apps");
-    harness
-        .get(By::new().role(Role::Button).label_contains("Ігри"))
-        .click();
+    harness.get(By::new().role(Role::CheckBox).label("Ігри")).click();
     settle(&mut harness);
     harness.get_by_role_and_label(Role::Button, "Розмір").click();
     settle(&mut harness);
@@ -704,9 +703,7 @@ fn pictures_of_the_real_system() {
         sleep(Duration::from_millis(5));
     }
     shot(&mut harness, "real-02-games");
-    harness
-        .get(By::new().role(Role::Button).label_contains("Усі програми"))
-        .click();
+    harness.get(By::new().role(Role::CheckBox).label("Ігри")).click();
     settle(&mut harness);
     let field = harness.get_by_role(Role::TextInput);
     field.focus();
@@ -934,6 +931,7 @@ fn long_catalog() -> Catalog {
         items,
         db: PackageDb::new(nodes),
         system: Some(PackageSystem::Pacman),
+        ..Catalog::default()
     }
 }
 

@@ -8,6 +8,7 @@ mod operator;
 mod pictures;
 pub mod view;
 
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, channel};
 use std::thread;
@@ -22,9 +23,10 @@ use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
-use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize};
+use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize, TileIcon};
 use operator::collapsible::Collapsible;
 use operator::combobox::{self, Combobox};
+use operator::content::Picture;
 use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
 use operator::feedback::{Toasts, Tone};
 use operator::icon::{self, Icon};
@@ -98,6 +100,15 @@ fn origin_icon(origin: Origin) -> Icon {
         Origin::Explicit => icon::PERSON,
         Origin::Needed => icon::LINK,
         Origin::Orphan => icon::LINK_OFF,
+    }
+}
+
+/// The names of the icon of a filter in the icon themes. Origins have none there.
+fn theme_names(facet: Facet) -> &'static [&'static str] {
+    match facet {
+        Facet::Section(section) => section.theme_icons(),
+        Facet::Source(source) => source.theme_icons(),
+        Facet::Origin(_) => &[],
     }
 }
 
@@ -389,13 +400,22 @@ impl App {
             .catalog
             .as_ref()
             .map_or(&[][..], |catalog| catalog.items.as_slice());
+        let theme = self.catalog.as_ref().map(|catalog| &catalog.theme_icons);
+        let pictures = &mut self.pictures;
         let tiles: Vec<GroupItem<'_>> = facets
             .iter()
             .map(|&facet| {
                 let (glyph, name) = facet_label(facet, text);
+                // The icon of the system theme, so the side bar looks like the rest of the
+                // desktop; the glyph while it loads, or when the theme has none.
+                let path = theme.and_then(|found| theme_names(facet).iter().find_map(|name| found.get(name)));
+                let icon = match pictures.get(path.map(PathBuf::as_path)) {
+                    Picture::Ready(texture) => TileIcon::Picture(texture.clone()),
+                    _ => TileIcon::Glyph(glyph),
+                };
                 GroupItem {
                     name,
-                    icon: Some(glyph),
+                    icon: Some(icon),
                     count: Some(self.view.count(items, facet)),
                     selected: self.view.is_on(facet),
                 }

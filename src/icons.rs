@@ -9,6 +9,9 @@ use crate::scan::Places;
 /// Pixel size icons are decoded at: sharp at the largest size the interface draws.
 pub const DECODED_SIZE: u32 = 96;
 
+/// The folders of a theme the index reads.
+const CONTEXTS: [&str; 5] = ["apps", "categories", "places", "devices", "mimetypes"];
+
 #[derive(Clone, Debug, Default)]
 pub struct IconIndex {
     found: HashMap<String, Candidate>,
@@ -67,7 +70,9 @@ impl IconIndex {
         }
     }
 
-    /// Themes lay folders out as `48x48/apps` or `apps/48`; both are looked at.
+    /// Themes lay folders out as `48x48/apps` or `apps/48`; both are looked at. Besides the
+    /// icons of programs, the side bar takes those of categories, places, devices and file
+    /// types.
     fn add_theme(&mut self, theme: &Path, theme_order: u32) {
         let Ok(entries) = fs::read_dir(theme) else {
             return;
@@ -75,7 +80,7 @@ impl IconIndex {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name == "apps" {
+            if CONTEXTS.contains(&name.as_str()) {
                 let Ok(sizes) = fs::read_dir(&path) else {
                     continue;
                 };
@@ -84,7 +89,9 @@ impl IconIndex {
                     self.add_folder(&size.path(), hint, theme_order);
                 }
             } else {
-                self.add_folder(&path.join("apps"), size_in(&name), theme_order);
+                for context in CONTEXTS {
+                    self.add_folder(&path.join(context), size_in(&name), theme_order);
+                }
             }
         }
     }

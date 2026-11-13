@@ -361,6 +361,7 @@ fn demo(lang: Lang) -> Catalog {
         items,
         db: PackageDb::new(nodes),
         system: Some(PackageSystem::Pacman),
+        ..Catalog::default()
     }
 }
 

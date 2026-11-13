@@ -31,6 +31,23 @@ pub struct Catalog {
     pub db: PackageDb,
     /// The package system of the distribution, `None` when there is none the catalogue reads.
     pub system: Option<PackageSystem>,
+    /// The icons of sections and sources found in the icon themes, by name.
+    pub theme_icons: HashMap<&'static str, PathBuf>,
+}
+
+/// Looks up every name the side bar may ask for.
+fn theme_icons(icons: &IconIndex) -> HashMap<&'static str, PathBuf> {
+    let sections = Section::APPS
+        .iter()
+        .chain(&Section::OTHER)
+        .flat_map(|section| section.theme_icons());
+    let sources = crate::model::SourceKind::ALL
+        .iter()
+        .flat_map(|source| source.theme_icons());
+    sections
+        .chain(sources)
+        .filter_map(|&name| icons.find(name).map(|path| (name, path)))
+        .collect()
 }
 
 /// The places the scan reads, so a test can point it elsewhere.
@@ -561,5 +578,10 @@ pub fn run(places: &Places, lang: Lang) -> Catalog {
     items.extend(docker::items(&docker::parse(&docker), lang.text()));
     items.extend(manual.items);
     let items = items.into_iter().map(Item::seal).collect();
-    Catalog { items, db, system }
+    Catalog {
+        items,
+        db,
+        system,
+        theme_icons: theme_icons(&icons),
+    }
 }

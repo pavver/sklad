@@ -1,10 +1,11 @@
 //! `CheckboxGroup` (`docs/components/checkbox-group.md`), synchronous use: a tile changes on
 //! click, with no request behind it, so it never shows `Pending` or a result.
 //!
-//! Each tile may carry a `Counter` before its indicator box: an agreed departure from the
-//! specification, which has no number on a tile yet.
+//! Two agreed departures from the specification: each tile may carry a `Counter` before its
+//! indicator box, and its icon may be a picture from the icon theme of the system instead of a
+//! glyph, drawn in its own colours.
 
-use eframe::egui::{self, CursorIcon, Id, Rect, Sense, Ui, WidgetInfo, pos2, vec2};
+use eframe::egui::{self, CursorIcon, Id, Rect, Sense, TextureHandle, Ui, WidgetInfo, pos2, vec2};
 
 use super::icon::{Icon, paint_icon};
 use super::layout::{Tone, counter_size, paint_counter};
@@ -35,10 +36,19 @@ impl IconSize {
     }
 }
 
+/// The icon of a tile.
+#[derive(Clone)]
+pub enum TileIcon {
+    /// A single-colour glyph, tinted with the state of the tile.
+    Glyph(Icon),
+    /// A picture in its own colours.
+    Picture(TextureHandle),
+}
+
 /// One option.
 pub struct GroupItem<'a> {
     pub name: &'a str,
-    pub icon: Option<Icon>,
+    pub icon: Option<TileIcon>,
     pub count: Option<usize>,
     pub selected: bool,
 }
@@ -98,10 +108,22 @@ impl CheckboxGroup<'_> {
             } else {
                 palette.text_primary
             };
-            if let Some(icon) = item.icon {
+            if let Some(icon) = &item.icon {
                 let side = du(self.icon_size.du());
-                let colour = if selected { palette.accent } else { palette.icon };
-                paint_icon(ui, icon, pos2(left + side / 2.0, rect.center().y), side, colour);
+                let centre = pos2(left + side / 2.0, rect.center().y);
+                match icon {
+                    TileIcon::Glyph(glyph) => {
+                        let colour = if selected { palette.accent } else { palette.icon };
+                        paint_icon(ui, *glyph, centre, side, colour);
+                    }
+                    TileIcon::Picture(texture) => {
+                        let place = Rect::from_center_size(centre, vec2(side, side));
+                        egui::Image::from_texture(texture)
+                            .fit_to_exact_size(place.size())
+                            .maintain_aspect_ratio(true)
+                            .paint_at(ui, place);
+                    }
+                }
                 left += side + du(dim::GUTTER);
             }
 
