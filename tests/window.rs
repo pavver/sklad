@@ -793,7 +793,11 @@ fn controls_of_one_bar_share_their_top_and_height() {
         .get(By::new().role(Role::Button).label_contains("Оновити"))
         .rect();
     let search = harness.get_by_role(Role::TextInput).rect();
-    assert_eq!(refresh.height(), 32.0, "a toolbar command is 8 DU");
+    assert_eq!(
+        refresh.height(),
+        44.0,
+        "the refresh button before the title is 11 DU"
+    );
     assert_eq!(refresh.width(), refresh.height(), "an icon button is square");
     assert_eq!(search.center().y, refresh.center().y);
 }
@@ -816,8 +820,66 @@ fn the_search_sits_in_the_middle_of_the_header() {
         "search {search:?} in a window {screen:?}"
     );
     assert!(
-        refresh.left() > search.right(),
-        "refresh sits with the actions on the right"
+        refresh.left() < screen.width() / 8.0,
+        "refresh leads the header: {refresh:?}"
+    );
+    assert!(refresh.right() < search.left(), "refresh sits in the left block");
+}
+
+#[test]
+fn a_refresh_shows_skeletons_and_hides_the_filters() {
+    // The second reading of the catalogue waits until the test lets it go.
+    let (release, gate) = channel::<()>();
+    let gate = Mutex::new(gate);
+    let calls = Mutex::new(0_usize);
+    let scanner: Scanner = Arc::new(move |_| {
+        let first = calls.lock().map(|mut calls| {
+            *calls += 1;
+            *calls == 1
+        });
+        if matches!(first, Ok(false))
+            && let Ok(gate) = gate.lock()
+        {
+            let _ = gate.recv_timeout(Duration::from_secs(10));
+        }
+        catalog()
+    });
+    let size = Vec2::new(1360.0, 1200.0);
+    let mut harness = window_speaking(FakeBackend::new(Outcome::Done), size, scanner, Lang::Uk);
+    settle(&mut harness);
+    harness
+        .get(By::new().role(Role::CheckBox).label("Мультимедіа"))
+        .click();
+    settle(&mut harness);
+    assert!(harness.query_by_label("Скинути фільтри").is_some());
+
+    harness
+        .get(By::new().role(Role::Button).label_contains("Оновити"))
+        .click();
+    settle(&mut harness);
+    shot(&mut harness, "refresh-skeleton");
+    assert!(
+        harness.query_by_role(Role::Row).is_none(),
+        "the old rows give way"
+    );
+    assert!(harness.query_by_role(Role::CheckBox).is_none(), "no filter tiles");
+    assert!(
+        harness.query_by_label("Скинути фільтри").is_none(),
+        "no filter chips"
+    );
+    assert!(
+        harness
+            .query(By::new().role(Role::ProgressIndicator).label("Loading"))
+            .is_some()
+    );
+
+    let _ = release.send(());
+    settle(&mut harness);
+    settle(&mut harness);
+    assert!(harness.query_by_role(Role::Row).is_some());
+    assert!(
+        harness.query_by_label("Скинути фільтри").is_some(),
+        "the filters come back as they were"
     );
 }
 

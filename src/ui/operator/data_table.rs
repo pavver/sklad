@@ -1,14 +1,16 @@
 //! `DataTable` (draft, `docs/components/data-table.md`): text cells, sortable columns, a sticky
 //! header and single selection. Rows have one height, so only the visible ones are laid out.
 //!
-//! Deviation, agreed with the maintainer: the first cell may lead with a square slot, `pad_card`
-//! before its text, as the leading slot of `ListItem`. The specification has text cells only.
+//! Deviations, agreed with the maintainer: the first cell may lead with a square slot, `pad_card`
+//! before its text, as the leading slot of `ListItem`; the specification has text cells only.
+//! A table that loads with no rows fills its body with `Skeleton` rows in the shape of its own
+//! rows, where the specification shows the bar alone.
 
 use eframe::egui::{
     self, Align, CursorIcon, Id, Key, Rect, ScrollArea, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2,
 };
 
-use super::feedback::paint_indeterminate;
+use super::feedback::{paint_indeterminate, paint_skeleton, skeleton_share, skeleton_text_line};
 use super::icon::{self, paint_icon};
 use super::state::{BORDER, BORDER_THICK, hover_amount, paint_focus_ring};
 use super::text::{paint_aligned, truncated};
@@ -143,6 +145,11 @@ impl DataTable<'_> {
             .max_rect(body)
             .scope_id(self.id.with("body"));
         ui.scope_builder(builder, |ui| {
+            if self.rows == 0 && self.loading {
+                ui.allocate_rect(body, Sense::hover());
+                self.skeleton(ui, body, &spans, palette);
+                return;
+            }
             if self.rows == 0 {
                 ui.allocate_rect(body, Sense::hover());
                 ui.scope_builder(egui::UiBuilder::new().max_rect(body), empty);
@@ -236,6 +243,47 @@ impl DataTable<'_> {
             rect.bottom() - BORDER / 2.0,
             Stroke::new(BORDER, palette.border),
         );
+    }
+
+    /// Placeholder rows over the whole body: the leading square and a line in every cell, where
+    /// the real rows will put theirs.
+    fn skeleton(&self, ui: &Ui, body: Rect, spans: &[(f32, f32)], palette: &Palette) {
+        let response = ui.interact(body, self.id.with("skeleton"), Sense::hover());
+        response.widget_info(|| WidgetInfo::labeled(egui::Role::ProgressIndicator, true, "Loading"));
+        let rows = (body.height() / ROW).ceil() as usize;
+        for row in 0..rows {
+            let rect = Rect::from_min_size(
+                pos2(body.left(), body.top() + row as f32 * ROW),
+                vec2(body.width(), ROW),
+            );
+            for (index, (column, (left, right))) in self.columns.iter().zip(spans).enumerate() {
+                let mut cell =
+                    Rect::from_x_y_ranges(*left..=*right, rect.y_range()).shrink2(vec2(CELL_PAD, 0.0));
+                if index == 0
+                    && let Some(side) = self.leading.map(du)
+                {
+                    let slot = Rect::from_center_size(
+                        pos2(cell.left() + side / 2.0, cell.center().y),
+                        vec2(side, side),
+                    );
+                    paint_skeleton(ui, slot.intersect(body), palette);
+                    cell.min.x = (slot.right() + CELL_PAD).min(cell.max.x);
+                }
+                let width = cell.width() * skeleton_share(row * 3 + index);
+                let left = if column.numeric {
+                    cell.right() - width
+                } else {
+                    cell.left()
+                };
+                let line = skeleton_text_line(left, cell.center().y, width, Type::BodySmall);
+                paint_skeleton(ui, line.intersect(body), palette);
+            }
+            ui.painter().hline(
+                rect.x_range(),
+                rect.bottom() - BORDER / 2.0,
+                Stroke::new(BORDER, palette.divider),
+            );
+        }
     }
 
     fn row(

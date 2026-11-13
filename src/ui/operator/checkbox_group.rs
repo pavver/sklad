@@ -7,6 +7,7 @@
 
 use eframe::egui::{self, CursorIcon, Id, Rect, Sense, TextureHandle, Ui, WidgetInfo, pos2, vec2};
 
+use super::feedback::{paint_skeleton, skeleton_share, skeleton_text_line};
 use super::icon::{Icon, paint_icon};
 use super::layout::{Tone, counter_size, paint_counter};
 use super::state::{
@@ -63,6 +64,61 @@ pub struct CheckboxGroup<'a> {
     pub icon_size: IconSize,
     /// The largest number a counter shows in full.
     pub counter_max: usize,
+}
+
+/// The `Skeleton` of a group while its options load: `tiles` tiles, each with blocks where the
+/// icon, the name, the counter and the indicator box will be.
+pub fn skeleton(ui: &mut Ui, tiles: usize, icon_size: IconSize, palette: &Palette) {
+    for index in 0..tiles {
+        if index > 0 {
+            ui.add_space(du(TILE_GAP));
+        }
+        let size = vec2(ui.available_width(), du(dim::ROW_CONTROL));
+        let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+        if !ui.is_rect_visible(rect) {
+            continue;
+        }
+        ui.painter().rect_filled(rect, 0.0, palette.surface);
+        let pad = match icon_size {
+            IconSize::Large => dim::PAD_TIGHT,
+            IconSize::Small => dim::GUTTER,
+        };
+        let side = du(icon_size.du());
+        let icon = Rect::from_min_size(
+            pos2(rect.left() + du(pad), rect.center().y - side / 2.0),
+            vec2(side, side),
+        );
+        paint_skeleton(ui, icon, palette);
+        let boxed = du(dim::ICON_LARGE);
+        let boxed = Rect::from_min_size(
+            pos2(
+                rect.right() - du(dim::GUTTER) - boxed,
+                rect.center().y - boxed / 2.0,
+            ),
+            vec2(boxed, boxed),
+        );
+        paint_skeleton(ui, boxed, palette);
+        let counter = counter_size(ui, 99, usize::MAX);
+        let counter = Rect::from_min_size(
+            pos2(
+                boxed.left() - du(dim::GUTTER) - counter.x,
+                rect.center().y - counter.y / 2.0,
+            ),
+            counter,
+        );
+        paint_skeleton(ui, counter, palette);
+        let left = icon.right() + du(dim::GUTTER);
+        let room = (counter.left() - du(dim::GUTTER) - left).max(0.0);
+        let line = skeleton_text_line(left, rect.center().y, room * skeleton_share(index), Type::Body);
+        paint_skeleton(ui, line, palette);
+        paint_border(
+            ui,
+            rect,
+            Outline::of(ControlState::Idle, palette),
+            &Look::IDLE,
+            palette,
+        );
+    }
 }
 
 impl CheckboxGroup<'_> {

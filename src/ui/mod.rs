@@ -23,8 +23,8 @@ use crate::remove::{self, Backend, Event, command_line};
 use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
-use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize, TileIcon};
-use operator::collapsible::Collapsible;
+use operator::checkbox_group::{self, CheckboxGroup, GroupItem, IconSize, TileIcon};
+use operator::collapsible::{self, Collapsible};
 use operator::combobox::{self, Combobox};
 use operator::content::Picture;
 use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
@@ -96,6 +96,8 @@ const PANE_MIN: f32 = 90.0;
 const COUNT_MAX: usize = 99_999;
 /// The width in DU the search in the middle of the header would like.
 const SEARCH_WIDTH: f32 = 80.0;
+/// The side in DU of the refresh button before the title, a size the specification lists.
+const REFRESH_SIZE: f32 = 11.0;
 
 fn origin_icon(origin: Origin) -> Icon {
     match origin {
@@ -336,6 +338,7 @@ impl App {
         // What the list shows, and how much it takes: all of it, or the part the filters and the
         // search leave.
         let subtitle = match &self.catalog {
+            Some(_) if self.scanning.is_some() => text.reading_system.to_owned(),
             Some(catalog) => {
                 let shown = &self.visible;
                 let size: u64 = shown.iter().filter_map(|&index| catalog.items[index].size).sum();
@@ -367,27 +370,40 @@ impl App {
                 query = field.show(ui, query_text, palette);
             },
         };
-        header(ui, text.app_name, Some(&subtitle), palette, Some(search), |ui| {
-            toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
-            let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
-            let selected = Lang::ALL
-                .iter()
-                .position(|&lang| lang == self.choice.lang)
-                .unwrap_or(0);
-            let choice = Combobox {
-                id: Id::unique("language"),
-                options: &names,
-                label: text.language,
-                no_matches: text.no_matches,
-                width: combobox::natural_width(ui, &names),
-            }
-            .show(ui, selected, palette);
-            language = choice.and_then(|index| Lang::ALL.get(index).copied());
+        let refresh_button = |ui: &mut Ui| {
             refresh = IconButton::new(icon::REFRESH, text.refresh)
+                .size(REFRESH_SIZE)
+                .icon_size(dim::ICON_LARGE)
                 .look(look)
                 .show(ui, palette)
                 .clicked();
-        });
+        };
+        let start = Some(refresh_button);
+        header(
+            ui,
+            text.app_name,
+            Some(&subtitle),
+            palette,
+            start,
+            Some(search),
+            |ui| {
+                toggled = theme_toggle(ui, Id::unique("theme"), self.dark, text.dark_theme, palette);
+                let names: Vec<String> = Lang::ALL.iter().map(|lang| lang.name().to_owned()).collect();
+                let selected = Lang::ALL
+                    .iter()
+                    .position(|&lang| lang == self.choice.lang)
+                    .unwrap_or(0);
+                let choice = Combobox {
+                    id: Id::unique("language"),
+                    options: &names,
+                    label: text.language,
+                    no_matches: text.no_matches,
+                    width: combobox::natural_width(ui, &names),
+                }
+                .show(ui, selected, palette);
+                language = choice.and_then(|index| Lang::ALL.get(index).copied());
+            },
+        );
         if refresh && self.scanning.is_none() {
             self.rescan(ui.ctx());
         }
@@ -459,7 +475,29 @@ impl App {
         }
     }
 
+    /// Whether the catalogue is being read, the first time or again: the list and the side bar
+    /// show skeletons then, and the filters are hidden.
+    fn loading(&self) -> bool {
+        self.catalog.is_none() || self.scanning.is_some()
+    }
+
+    /// The side bar while the catalogue loads: the four groups in the shape they will take.
+    fn side_bar_skeleton(ui: &mut Ui, palette: &Palette) {
+        ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+            ui.spacing_mut().item_spacing.y = 0.0;
+            for (seed, tiles) in [6, 3, 3, 3].into_iter().enumerate() {
+                collapsible::skeleton(ui, seed, palette, |ui| {
+                    checkbox_group::skeleton(ui, tiles, IconSize::Large, palette);
+                });
+            }
+        });
+    }
+
     fn side_bar(&mut self, ui: &mut Ui, palette: &Palette) {
+        if self.loading() {
+            Self::side_bar_skeleton(ui, palette);
+            return;
+        }
         let text = self.text();
         let (programs, other, sources): (Vec<Facet>, Vec<Facet>, Vec<Facet>) =
             self.catalog.as_ref().map_or_else(Default::default, |catalog| {
@@ -489,7 +527,7 @@ impl App {
     /// The chosen filters as chips, each with its remove button, and a chip at the end that
     /// takes them all off. Nothing when no filter is on.
     fn filter_bar(&mut self, ui: &mut Ui, palette: &Palette) {
-        if self.view.filters().is_empty() {
+        if self.view.filters().is_empty() || self.loading() {
             return;
         }
         let text = self.text();
@@ -533,12 +571,15 @@ impl App {
         let empty = Vec::new();
         let catalog = self.catalog.clone();
         let items = catalog.as_ref().map_or(&empty, |catalog| &catalog.items);
+        let loading = self.loading();
+        // While the catalogue is read again, the rows of the old one give way to the skeleton.
+        let indices: &[usize] = if loading { &[] } else { &self.visible };
         let rows = list::Rows {
             items,
-            indices: &self.visible,
+            indices,
             selected: self.selection.as_ref().map(|selection| selection.id.as_str()),
             sorting: list::sorting_of(&self.view),
-            loading: self.scanning.is_some(),
+            loading,
             now,
             text: self.text(),
         };

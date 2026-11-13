@@ -5,9 +5,9 @@ use eframe::egui::{Id, Ui};
 use super::format;
 use super::operator::content::avatar;
 use super::operator::data_table::{Column, DataTable, Direction, Sorting, Width};
-use super::operator::feedback::{empty_state, skeleton_lines};
+use super::operator::feedback::empty_state;
 use super::operator::icon;
-use super::operator::tokens::{Palette, dim, du};
+use super::operator::tokens::{Palette, dim};
 use super::pictures::Pictures;
 use super::view::{Order, SortKey, View};
 use crate::i18n::Text;
@@ -122,19 +122,8 @@ pub fn show(ui: &mut Ui, rows: &Rows<'_>, pictures: &mut Pictures, palette: &Pal
             avatar(ui, rect, &item.id, &item.title, picture, palette);
         },
         |ui| {
-            if rows.loading {
-                ui.add_space(du(dim::PAD_CARD));
-                ui.horizontal(|ui| {
-                    ui.add_space(du(dim::PAD_CARD));
-                    ui.vertical(|ui| {
-                        ui.set_width(ui.available_width() - du(dim::PAD_CARD));
-                        skeleton_lines(ui, 6, palette);
-                    });
-                });
-            } else {
-                let rect = ui.max_rect();
-                empty_state(ui, rect, icon::INBOX, text.nothing_found, None, true, palette);
-            }
+            let rect = ui.max_rect();
+            empty_state(ui, rect, icon::INBOX, text.nothing_found, None, true, palette);
         },
     );
     if let Some(sorting) = events.sorting {

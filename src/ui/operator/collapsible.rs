@@ -6,6 +6,7 @@ use std::f32::consts::FRAC_PI_2;
 use eframe::egui::{self, CursorIcon, Id, Rect, Sense, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 use operator_ui_tokens::motion;
 
+use super::feedback::{paint_skeleton, skeleton_share, skeleton_text_line};
 use super::icon::{self, paint_icon_turned};
 use super::layout::{Tone, counter_size, paint_counter};
 use super::motion::standard;
@@ -22,6 +23,54 @@ pub struct Collapsible<'a> {
     /// The largest number the counter shows in full.
     pub counter_max: usize,
     pub initially_open: bool,
+}
+
+/// The `Skeleton` of an open section while it loads: blocks where the chevron and the title will
+/// be, and `content` placed where the content of the section goes.
+pub fn skeleton(ui: &mut Ui, seed: usize, palette: &Palette, content: impl FnOnce(&mut Ui)) {
+    skeleton_header(ui, seed, palette);
+    let (indent, top, bottom, end) = insets();
+    let width = ui.available_width();
+    let origin = ui.cursor().min;
+    let inner = Rect::from_min_size(
+        pos2(origin.x + indent, origin.y + top),
+        vec2((width - indent - end).max(0.0), f32::INFINITY),
+    );
+    let mut child = ui.new_child(UiBuilder::new().max_rect(inner));
+    content(&mut child);
+    let full = top + child.min_rect().height() + bottom;
+    ui.allocate_exact_size(vec2(width, full), Sense::hover());
+}
+
+/// Where the content of a section sits: its indent, to the title past the start padding, the
+/// chevron and the gap, and its top, bottom and end padding.
+fn insets() -> (f32, f32, f32, f32) {
+    (
+        du(2.0 * dim::GUTTER + dim::ICON_SMALL),
+        du(dim::PAD_TIGHT),
+        du(dim::PAD_CARD),
+        du(dim::PAD_CARD),
+    )
+}
+
+fn skeleton_header(ui: &mut Ui, seed: usize, palette: &Palette) {
+    let size = vec2(ui.available_width(), du(dim::ROW_STANDARD));
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let side = du(dim::ICON_SMALL);
+    let start = rect.left() + du(dim::GUTTER);
+    let chevron = Rect::from_min_size(pos2(start, rect.center().y - side / 2.0), vec2(side, side));
+    paint_skeleton(ui, chevron, palette);
+    let left = chevron.right() + du(dim::GUTTER);
+    let room = (rect.right() - du(dim::PAD_CARD) - left).max(0.0);
+    let width = room * 0.6 * skeleton_share(seed);
+    paint_skeleton(
+        ui,
+        skeleton_text_line(left, rect.center().y, width, Type::Body),
+        palette,
+    );
 }
 
 impl Collapsible<'_> {
@@ -48,9 +97,7 @@ impl Collapsible<'_> {
             return;
         }
 
-        // The content is indented to the title: past the start padding, the chevron and the gap.
-        let indent = du(2.0 * dim::GUTTER + dim::ICON_SMALL);
-        let (top, bottom, end) = (du(dim::PAD_TIGHT), du(dim::PAD_CARD), du(dim::PAD_CARD));
+        let (indent, top, bottom, end) = insets();
         let width = ui.available_width();
         let origin = ui.cursor().min;
         let height_key = self.id.with("height");

@@ -26,21 +26,33 @@ pub struct HeaderCentre<F> {
     pub content: F,
 }
 
-/// `Header`: the top bar with a title, a subtitle and actions, and in sklad an optional block in
-/// the middle.
-pub fn header<C: FnOnce(&mut Ui)>(
+/// `Header`: the top bar with a title, a subtitle and actions, and in sklad an optional control
+/// before the title and an optional block in the middle.
+///
+/// `start` takes the place of the avatar of the specification, with the same `pad_content` gap
+/// after it; sklad puts its refresh button there, with the maintainer's agreement.
+pub fn header<S: FnOnce(&mut Ui), C: FnOnce(&mut Ui)>(
     ui: &mut Ui,
     title: &str,
     subtitle: Option<&str>,
     palette: &Palette,
+    start: Option<S>,
     centre: Option<HeaderCentre<C>>,
     actions: impl FnOnce(&mut Ui),
 ) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), du(13.5)), Sense::hover());
     ui.painter().rect_filled(rect, 0.0, palette.surface);
-    let inner = rect.shrink2(vec2(du(dim::MARGIN_SCREEN), 0.0));
+    let mut inner = rect.shrink2(vec2(du(dim::MARGIN_SCREEN), 0.0));
     let gap = du(dim::GUTTER);
     let taken = from_the_end(ui, inner, gap, actions);
+    if let Some(start) = start {
+        let layout = Layout::left_to_right(Align::Center);
+        let lead = ui
+            .scope_builder(UiBuilder::new().max_rect(inner).layout(layout), start)
+            .response
+            .rect;
+        inner.min.x = (lead.right() + du(dim::PAD_CONTENT)).min(inner.max.x);
+    }
     let kind = if subtitle.is_some() {
         Type::RowTitle
     } else {

@@ -157,23 +157,25 @@ fn paint_centred_line(ui: &Ui, centre: f32, top: f32, galley: std::sync::Arc<egu
     ui.painter().galley(corner, galley, colour);
 }
 
-/// `Skeleton`: text lines with a highlight sweeping over them once per `skeleton_lap`.
-pub fn skeleton_lines(ui: &mut Ui, lines: usize, palette: &Palette) {
-    let line = Type::Body.line();
-    let bar = Type::Body.size();
-    let gap = du(dim::PAD_TIGHT);
-    let width = ui.available_width();
-    let height = lines as f32 * line + lines.saturating_sub(1) as f32 * gap;
-    let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+/// `Skeleton` block: one placeholder shape at `rect`, with the highlight sweeping over it once
+/// per `skeleton_lap`. Components lay their blocks out in the shape of their own content.
+pub fn paint_skeleton(ui: &Ui, rect: Rect, palette: &Palette) {
     let time = ui.input(|input| input.time) as f32;
     let phase = (time / secs(motion::SKELETON_LAP_MS)).fract();
-    for index in 0..lines {
-        let share = if index + 1 == lines && lines > 1 { 0.6 } else { 1.0 };
-        let top = rect.top() + index as f32 * (line + gap) + (line - bar) / 2.0;
-        let shape = Rect::from_min_size(pos2(rect.left(), top), vec2(width * share, bar));
-        paint_shimmer(ui, shape, phase, palette);
-    }
+    paint_shimmer(ui, rect, phase, palette);
     ui.ctx().request_repaint();
+}
+
+/// The `Skeleton` of a text line in `kind`: a bar of its font size, centred on `centre_y`.
+pub fn skeleton_text_line(left: f32, centre_y: f32, width: f32, kind: Type) -> Rect {
+    Rect::from_center_size(pos2(left + width / 2.0, centre_y), vec2(width, kind.size()))
+}
+
+/// How much of the room a placeholder line takes, varied from line to line so the shapes read as
+/// text, the same in every frame.
+pub fn skeleton_share(seed: usize) -> f32 {
+    const SHARES: [f32; 5] = [0.7, 0.45, 0.85, 0.55, 0.65];
+    SHARES[seed % SHARES.len()]
 }
 
 /// `surface_alt` with a soft band of `pressed` crossing it from right to left.
