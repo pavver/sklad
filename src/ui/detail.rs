@@ -31,6 +31,7 @@ fn removal_note(item: &Item, text: &Text) -> String {
         Removal::Flatpak { .. } => text.by_flatpak,
         Removal::Steam { .. } => text.by_steam,
         Removal::Cargo { .. } => text.by_cargo,
+        Removal::Docker { .. } => text.by_docker,
         Removal::Manager { .. } => text.by_language_manager,
         Removal::Unavailable { .. } => text.not_removable_here,
         Removal::Files {

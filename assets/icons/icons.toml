@@ -16,6 +16,7 @@ code = { material = "code" }
 construction = { material = "construction" }
 deployed_code = { material = "deployed_code" }
 description = { material = "description" }
+directions_boat = { material = "directions_boat" }
 extension = { material = "extension" }
 folder = { material = "folder" }
 font_download = { material = "font_download" }

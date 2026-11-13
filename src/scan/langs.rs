@@ -1,4 +1,5 @@
-//! What the package managers of programming languages installed: npm, pnpm, pip, pipx, uv, rustup.
+//! What the package managers of programming languages installed: npm, pnpm, pip, pipx, uv, rustup,
+//! and the Python environments of virtualenvwrapper, pyenv, conda and mamba.
 
 use std::collections::HashSet;
 use std::fs;
@@ -382,6 +383,125 @@ fn environment_items(places: &Places, text: &Text, out: &mut Scan) {
     }
 }
 
+/// The Python version of a virtual environment, from its `pyvenv.cfg`.
+fn pyvenv_version(environment: &Path) -> Option<String> {
+    let config = fs::read_to_string(environment.join("pyvenv.cfg")).ok()?;
+    config.lines().find_map(|line| {
+        let (key, value) = line.split_once('=')?;
+        matches!(key.trim(), "version" | "version_info")
+            .then(|| value.trim().split('.').take(3).collect::<Vec<_>>().join("."))
+    })
+}
+
+/// The Python version of a conda environment: the name of the record of its `python` package.
+fn conda_version(environment: &Path) -> Option<String> {
+    loose::entries_in(&environment.join("conda-meta"))
+        .iter()
+        .filter_map(|record| record.file_name()?.to_str()?.strip_prefix("python-"))
+        .find(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
+        .and_then(|rest| rest.split('-').next())
+        .map(str::to_owned)
+}
+
+/// An environment or an interpreter that goes to the bin as it lies.
+fn trash_item(paths: Vec<PathBuf>, name: &str, version: Option<String>, summary: String) -> Item {
+    let main = paths.last().cloned().unwrap_or_default();
+    let removal = Removal::Files {
+        paths,
+        access: Access::User,
+    };
+    let mut item = blank(
+        format!("venv:{}", main.display()),
+        name.to_owned(),
+        Source::Python,
+        removal,
+    );
+    item.version = version.unwrap_or_default();
+    item.summary = summary;
+    item.description = item.summary.clone();
+    item.size = Some(loose::size_of(&main));
+    item
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+/// pyenv keeps interpreters in `versions`, and a pyenv-virtualenv environment inside its
+/// interpreter with a link to it next to them.
+fn pyenv_items(places: &Places, text: &Text, out: &mut Scan) {
+    let versions = places.home.join(".pyenv/versions");
+    for entry in loose::entries_in(&versions) {
+        let name = file_name(&entry);
+        if let Ok(target) = fs::read_link(&entry) {
+            let target = versions.join(target);
+            if target.join("pyvenv.cfg").is_file() {
+                let version = pyvenv_version(&target);
+                let summary = (text.python_environment)("pyenv-virtualenv");
+                out.items
+                    .push(trash_item(vec![entry, target], &name, version, summary));
+            }
+        } else if entry.is_dir() {
+            let mut item = trash_item(
+                vec![entry],
+                &name,
+                Some(name.clone()),
+                (text.python_interpreter)("pyenv"),
+            );
+            item.title = format!("Python {name} (pyenv)");
+            out.items.push(item);
+        }
+    }
+    out.claimed.push(versions);
+}
+
+/// Environments kept where their tools put them: virtualenvwrapper, pyenv, conda and mamba.
+fn known_environments(places: &Places, text: &Text, out: &mut Scan) {
+    let home = &places.home;
+    let virtualenvs = home.join(".virtualenvs");
+    for environment in loose::directories_in(&virtualenvs) {
+        if environment.join("pyvenv.cfg").is_file() {
+            let version = pyvenv_version(&environment);
+            let summary = (text.python_environment)("virtualenvwrapper");
+            out.items.push(trash_item(
+                vec![environment.clone()],
+                &file_name(&environment),
+                version,
+                summary,
+            ));
+        }
+    }
+    out.claimed.push(virtualenvs);
+    pyenv_items(places, text, out);
+    let conda = [
+        ("miniconda3", "conda"),
+        ("anaconda3", "conda"),
+        ("miniforge3", "conda"),
+        ("mambaforge", "mamba"),
+        (".conda", "conda"),
+        ("micromamba", "mamba"),
+        (".local/share/mamba", "mamba"),
+    ];
+    for (root, tool) in conda {
+        let envs = home.join(root).join("envs");
+        for environment in loose::directories_in(&envs) {
+            if environment.join("conda-meta").is_dir() {
+                let version = conda_version(&environment);
+                let summary = (text.python_environment)(tool);
+                out.items.push(trash_item(
+                    vec![environment.clone()],
+                    &file_name(&environment),
+                    version,
+                    summary,
+                ));
+            }
+        }
+        out.claimed.push(envs);
+    }
+}
+
 fn uv_pythons(places: &Places, text: &Text, out: &mut Scan) {
     let root = places.home.join(".local/share/uv/python");
     for folder in loose::directories_in(&root) {
@@ -406,7 +526,7 @@ fn uv_pythons(places: &Places, text: &Text, out: &mut Scan) {
         let mut item = blank(id, key.clone(), Source::Python, manager("uv", argv, Access::User));
         item.title = format!("Python {version} ({implementation})");
         item.version = version;
-        item.summary = text.uv_python.to_owned();
+        item.summary = (text.python_interpreter)("uv");
         item.description = item.summary.clone();
         item.homepage = Some("https://www.python.org".to_owned());
         item.size = Some(loose::size_of(&folder));
@@ -476,6 +596,7 @@ pub fn run(places: &Places, owned: &Owned, lang: Lang) -> Scan {
     pnpm_items(places, &mut scan);
     pip_items(places, owned, text, &mut scan);
     environment_items(places, text, &mut scan);
+    known_environments(places, text, &mut scan);
     uv_pythons(places, text, &mut scan);
     rustup_items(places, text, &mut scan);
     scan.claimed = scan
@@ -668,6 +789,77 @@ mod tests {
         );
         assert!(by_title(&scan, "Rust stable").is_some_and(|item| item.warning.is_some()));
         assert!(by_title(&scan, "Rust nightly").is_some_and(|item| item.warning.is_none()));
+        Ok(())
+    }
+
+    fn trashed(item: Option<&Item>) -> Vec<PathBuf> {
+        match item.map(|item| &item.removal) {
+            Some(Removal::Files {
+                paths,
+                access: Access::User,
+            }) => paths.clone(),
+            _ => Vec::new(),
+        }
+    }
+
+    #[test]
+    fn environments_in_known_places_go_to_the_bin_whole() -> Result<(), Box<dyn Error>> {
+        let sandbox = Sandbox::new("environments");
+        sandbox.write(
+            "home/.virtualenvs/notes/pyvenv.cfg",
+            "home = /usr/bin
+version = 3.12.4
+",
+        )?;
+        sandbox.write("home/.virtualenvs/not-an-env/readme", "")?;
+        sandbox.write("home/.pyenv/versions/3.11.9/bin/python3", "")?;
+        sandbox.write(
+            "home/.pyenv/versions/3.11.9/envs/web/pyvenv.cfg",
+            "version_info = 3.11.9.final.0
+",
+        )?;
+        sandbox.write(
+            "home/miniconda3/envs/science/conda-meta/python-3.10.14-h955ad1f_1.json",
+            "{}",
+        )?;
+        sandbox.write("home/micromamba/envs/tiny/conda-meta/history", "")?;
+        let places = sandbox.places();
+        std::os::unix::fs::symlink(
+            places.home.join(".pyenv/versions/3.11.9/envs/web"),
+            places.home.join(".pyenv/versions/web"),
+        )?;
+        let scan = run(&places, &Owned::default(), Lang::En);
+        let home = &places.home;
+
+        let notes = by_title(&scan, "notes");
+        assert_eq!(trashed(notes), [home.join(".virtualenvs/notes")]);
+        assert_eq!(notes.map(|item| item.version.as_str()), Some("3.12.4"));
+        assert_eq!(
+            notes.map(|item| item.summary.as_str()),
+            Some("A Python environment of virtualenvwrapper")
+        );
+        assert!(by_title(&scan, "not-an-env").is_none());
+
+        let interpreter = by_title(&scan, "Python 3.11.9 (pyenv)");
+        assert_eq!(trashed(interpreter), [home.join(".pyenv/versions/3.11.9")]);
+        let web = by_title(&scan, "web");
+        assert_eq!(
+            trashed(web),
+            [
+                home.join(".pyenv/versions/web"),
+                home.join(".pyenv/versions/3.11.9/envs/web")
+            ],
+            "the link pyenv keeps goes too"
+        );
+        assert_eq!(web.map(|item| item.version.as_str()), Some("3.11.9"));
+
+        let science = by_title(&scan, "science");
+        assert_eq!(trashed(science), [home.join("miniconda3/envs/science")]);
+        assert_eq!(science.map(|item| item.version.as_str()), Some("3.10.14"));
+        assert_eq!(
+            by_title(&scan, "tiny").map(|item| item.summary.as_str()),
+            Some("A Python environment of mamba")
+        );
         Ok(())
     }
 

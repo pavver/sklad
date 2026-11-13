@@ -40,6 +40,7 @@ fn source(kind: SourceKind) -> &'static str {
         SourceKind::Python => "Python",
         SourceKind::Rustup => "Rustup",
         SourceKind::LocalDeb => "Paquets locaux",
+        SourceKind::Docker => "Docker",
         SourceKind::Manual => "Hors gestionnaires",
     }
 }
@@ -191,7 +192,13 @@ pub static TEXT: Text = Text {
         )
     },
     python_tool: |manager| format!("Un outil Python dans son propre environnement, installé par {manager}"),
-    uv_python: "Un interpréteur Python installé par uv",
+    python_interpreter: |manager| format!("Un interpréteur Python installé par {manager}"),
+    python_environment: |tool| format!("Un environnement Python de {tool}"),
+    by_docker: "Par Docker",
+    docker_container: |image| format!("Un conteneur Docker créé à partir de {image}"),
+    docker_image: "Une image Docker",
+    docker_volume: "Un volume Docker : des données gardées pour les conteneurs",
+    docker_data_lost: "Son contenu ne pourra pas être récupéré : Docker le supprime définitivement.",
     rust_toolchain: "Une chaîne d'outils Rust : le compilateur, cargo et la bibliothèque standard",
     default_toolchain: "C'est la chaîne d'outils par défaut : cargo et rustc cessent de fonctionner sans elle.",
 };

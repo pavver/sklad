@@ -45,6 +45,7 @@ imported!(
     CONSTRUCTION = "construction",
     DEPLOYED_CODE = "deployed_code",
     DESCRIPTION = "description",
+    DIRECTIONS_BOAT = "directions_boat",
     EXTENSION = "extension",
     FOLDER = "folder",
     FONT_DOWNLOAD = "font_download",

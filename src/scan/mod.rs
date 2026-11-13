@@ -2,6 +2,7 @@
 
 pub mod appstream;
 pub mod desktop;
+pub mod docker;
 pub mod dpkg;
 pub mod flatpak;
 pub mod langs;
@@ -469,6 +470,8 @@ fn join_launcher(item: &mut Item, launcher: &Launcher, path: &Path, context: &Co
 }
 
 pub fn run(places: &Places, lang: Lang) -> Catalog {
+    // The Docker daemon measures what it keeps, which takes a while; it does so meanwhile.
+    let docker = std::thread::spawn(|| capture("docker", &["system", "df", "-v", "--format", "{{json .}}"]));
     let running = usage::running_programs();
     let system = system::detect(places);
     let (packages, repositories) = match system {
@@ -553,6 +556,8 @@ pub fn run(places: &Places, lang: Lang) -> Catalog {
     items.extend(steam_items(&context));
     items.extend(cargo);
     items.extend(languages.items);
+    let docker = docker.join().unwrap_or_default();
+    items.extend(docker::items(&docker::parse(&docker), lang.text()));
     items.extend(manual.items);
     let items = items.into_iter().map(Item::seal).collect();
     Catalog { items, db, system }

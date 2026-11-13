@@ -15,6 +15,7 @@ pub enum Source {
     Rustup,
     /// A Debian package installed from a file, which no repository has.
     LocalDeb,
+    Docker,
     Manual,
 }
 
@@ -49,6 +50,7 @@ pub enum SourceKind {
     Python,
     Rustup,
     LocalDeb,
+    Docker,
     Manual,
 }
 
@@ -64,13 +66,14 @@ impl Source {
             Source::Python => SourceKind::Python,
             Source::Rustup => SourceKind::Rustup,
             Source::LocalDeb => SourceKind::LocalDeb,
+            Source::Docker => SourceKind::Docker,
             Source::Manual => SourceKind::Manual,
         }
     }
 }
 
 impl SourceKind {
-    pub const ALL: [SourceKind; 10] = [
+    pub const ALL: [SourceKind; 11] = [
         SourceKind::Repo,
         SourceKind::Aur,
         SourceKind::Flatpak,
@@ -80,6 +83,7 @@ impl SourceKind {
         SourceKind::Python,
         SourceKind::Rustup,
         SourceKind::LocalDeb,
+        SourceKind::Docker,
         SourceKind::Manual,
     ];
 
@@ -95,11 +99,16 @@ impl SourceKind {
         }
     }
 
-    /// Language managers install command-line tools and libraries, never windowed programs.
+    /// Language managers install command-line tools and libraries, and Docker keeps containers,
+    /// never windowed programs.
     pub fn holds_only_tools(self) -> bool {
         matches!(
             self,
-            SourceKind::Cargo | SourceKind::Node | SourceKind::Python | SourceKind::Rustup
+            SourceKind::Cargo
+                | SourceKind::Node
+                | SourceKind::Python
+                | SourceKind::Rustup
+                | SourceKind::Docker
         )
     }
 }
@@ -177,6 +186,14 @@ pub enum Evidence {
     Steam,
 }
 
+/// What Docker keeps, each removed by its own command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockerObject {
+    Container,
+    Image,
+    Volume,
+}
+
 /// Who may touch a path that is removed as plain files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Access {
@@ -213,6 +230,11 @@ pub enum Removal {
     },
     Cargo {
         name: String,
+    },
+    /// A container, an image or a volume, by the id or name Docker knows it by.
+    Docker {
+        object: DockerObject,
+        id: String,
     },
     Files {
         paths: Vec<PathBuf>,

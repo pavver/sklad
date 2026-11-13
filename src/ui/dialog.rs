@@ -255,6 +255,7 @@ impl Dialog {
             Removal::Flatpak { .. } => self.text.flatpak_note.to_owned(),
             Removal::Steam { .. } => self.text.steam_note.to_owned(),
             Removal::Cargo { .. } => self.text.cargo_note.to_owned(),
+            Removal::Docker { .. } => (self.text.through_manager)("Docker"),
             Removal::Files { paths, access } => {
                 let list = paths
                     .iter()
@@ -270,7 +271,11 @@ impl Dialog {
         };
         wrapped(ui, content, palette);
         if is_irreversible(&self.item) {
-            banner(ui, Tone::Error, None, self.text.not_a_package, palette);
+            let loss = match self.item.removal {
+                Removal::Docker { .. } => self.text.docker_data_lost,
+                _ => self.text.not_a_package,
+            };
+            banner(ui, Tone::Error, None, loss, palette);
         }
     }
 

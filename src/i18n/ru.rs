@@ -49,6 +49,7 @@ fn source(kind: SourceKind) -> &'static str {
         SourceKind::Python => "Python",
         SourceKind::Rustup => "Rustup",
         SourceKind::LocalDeb => "Локальные пакеты",
+        SourceKind::Docker => "Docker",
         SourceKind::Manual => "Вне менеджеров",
     }
 }
@@ -201,7 +202,13 @@ pub static TEXT: Text = Text {
         )
     },
     python_tool: |manager| format!("Инструмент Python в отдельном окружении, установлен через {manager}"),
-    uv_python: "Интерпретатор Python, установленный через uv",
+    python_interpreter: |manager| format!("Интерпретатор Python, установленный через {manager}"),
+    python_environment: |tool| format!("Окружение Python от {tool}"),
+    by_docker: "Через Docker",
+    docker_container: |image| format!("Контейнер Docker из образа {image}"),
+    docker_image: "Образ Docker",
+    docker_volume: "Том Docker: данные, которые хранят контейнеры",
+    docker_data_lost: "Его содержимое не вернуть: Docker удаляет его навсегда.",
     rust_toolchain: "Инструментарий Rust: компилятор, cargo и стандартная библиотека",
     default_toolchain: "Это инструментарий по умолчанию: без него cargo и rustc перестанут работать.",
 };

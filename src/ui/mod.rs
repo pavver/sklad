@@ -120,6 +120,7 @@ fn source_icon(source: SourceKind) -> Icon {
         SourceKind::Cargo | SourceKind::Node | SourceKind::Python => icon::CODE,
         SourceKind::Rustup => icon::CONSTRUCTION,
         SourceKind::LocalDeb => icon::PACKAGE_2,
+        SourceKind::Docker => icon::DIRECTIONS_BOAT,
         SourceKind::Manual => icon::FOLDER,
     }
 }

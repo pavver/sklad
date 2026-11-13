@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
-use crate::model::{Access, FlatpakScope, Item, PackageSystem, Removal};
+use crate::model::{Access, DockerObject, FlatpakScope, Item, PackageSystem, Removal};
 use crate::plan::{Mode, PackageDb, Plan};
 
 /// A command in two forms: what is executed and what is shown to the person.
@@ -151,6 +151,14 @@ pub fn other_spec(removal: &Removal) -> Option<Spec> {
         }
         Removal::Steam { app_id } => Some(direct(&["xdg-open", &format!("steam://uninstall/{app_id}")])),
         Removal::Cargo { name } => Some(direct(&["cargo", "uninstall", name])),
+        Removal::Docker { object, id } => {
+            let kind = match object {
+                DockerObject::Container => "container",
+                DockerObject::Image => "image",
+                DockerObject::Volume => "volume",
+            };
+            Some(direct(&["docker", kind, "rm", id]))
+        }
         Removal::Files { paths, access } => {
             if !paths.iter().all(|path| path_is_removable(path)) {
                 return None;
@@ -184,12 +192,16 @@ pub fn command_line(item: &Item, db: &PackageDb) -> Option<String> {
     }
 }
 
-/// True when the removal cannot be undone from the recycle bin or a reinstall.
+/// True when the removal cannot be undone from the recycle bin or a reinstall. An image can be
+/// pulled again; what a container or a volume holds cannot.
 pub fn is_irreversible(item: &Item) -> bool {
     matches!(
         item.removal,
         Removal::Files {
             access: Access::Root,
+            ..
+        } | Removal::Docker {
+            object: DockerObject::Container | DockerObject::Volume,
             ..
         }
     )
@@ -481,6 +493,29 @@ mod tests {
         assert_eq!(
             spec.map(|s| s.shown),
             Some("sudo npm uninstall -g stray".to_owned())
+        );
+    }
+
+    #[test]
+    fn docker_removes_each_object_by_its_own_command() {
+        let command = |object, id: &str| {
+            other_spec(&Removal::Docker {
+                object,
+                id: id.to_owned(),
+            })
+            .map(|spec| spec.shown)
+        };
+        assert_eq!(
+            command(DockerObject::Container, "becf455de171"),
+            Some("docker container rm becf455de171".to_owned())
+        );
+        assert_eq!(
+            command(DockerObject::Image, "sha256:0b0e"),
+            Some("docker image rm sha256:0b0e".to_owned())
+        );
+        assert_eq!(
+            command(DockerObject::Volume, "server_data"),
+            Some("docker volume rm server_data".to_owned())
         );
     }
 

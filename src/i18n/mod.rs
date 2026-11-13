@@ -266,7 +266,16 @@ pub struct Text {
     pub loose_launcher: fn(&str) -> String,
     pub stray_python: fn(&str) -> String,
     pub python_tool: fn(&str) -> String,
-    pub uv_python: &'static str,
+    /// An interpreter, then the manager that installed it.
+    pub python_interpreter: fn(&str) -> String,
+    /// A Python environment, then the tool that keeps it.
+    pub python_environment: fn(&str) -> String,
+    pub by_docker: &'static str,
+    /// The image the container was made from.
+    pub docker_container: fn(&str) -> String,
+    pub docker_image: &'static str,
+    pub docker_volume: &'static str,
+    pub docker_data_lost: &'static str,
     pub rust_toolchain: &'static str,
     pub default_toolchain: &'static str,
 }
