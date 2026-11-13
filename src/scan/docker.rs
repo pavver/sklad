@@ -63,15 +63,19 @@ pub fn parse_size(text: &str) -> Option<u64> {
         .unwrap_or(text.len());
     let (number, unit) = text.split_at(digits);
     let number: f64 = number.parse().ok()?;
-    let scale = match unit {
-        "B" | "" => 1.0,
-        "kB" | "KB" => 1e3,
-        "MB" => 1e6,
-        "GB" => 1e9,
-        "TB" => 1e12,
-        _ => return None,
-    };
-    Some((number * scale).round() as u64)
+    Some((number * scale(unit)?).round() as u64)
+}
+
+/// How many bytes one of a Docker size unit holds.
+fn scale(unit: &str) -> Option<f64> {
+    match unit {
+        "B" | "" => Some(1.0),
+        "kB" | "KB" => Some(1e3),
+        "MB" => Some(1e6),
+        "GB" => Some(1e9),
+        "TB" => Some(1e12),
+        _ => None,
+    }
 }
 
 /// Days since 1970-01-01 of a civil date, after Howard Hinnant's `days_from_civil`.
@@ -87,17 +91,30 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
 /// A time as Docker prints it, `2026-10-30 00:07:22 +0200 EET`, in Unix seconds.
 pub fn parse_time(text: &str) -> Option<i64> {
     let mut parts = text.split_whitespace();
-    let mut date = parts.next()?.split('-').map(str::parse::<i64>);
-    let mut clock = parts.next()?.split(':').map(str::parse::<i64>);
-    let offset = parts.next()?;
-    let (year, month, day) = (date.next()?.ok()?, date.next()?.ok()?, date.next()?.ok()?);
-    let (hour, minute, second) = (clock.next()?.ok()?, clock.next()?.ok()?, clock.next()?.ok()?);
-    let sign = if offset.starts_with('-') { -1 } else { 1 };
-    let offset = offset.trim_start_matches(['+', '-']);
-    let offset_hours: i64 = offset.get(..2)?.parse().ok()?;
-    let offset_minutes: i64 = offset.get(2..4)?.parse().ok()?;
+    let [year, month, day] = three(parts.next()?, '-')?;
+    let [hour, minute, second] = three(parts.next()?, ':')?;
+    let offset = offset_seconds(parts.next()?)?;
     let local = days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second;
-    Some(local - sign * (offset_hours * 3600 + offset_minutes * 60))
+    Some(local - offset)
+}
+
+/// Exactly three numbers apart by `separator`, as in a date or a clock time.
+fn three(text: &str, separator: char) -> Option<[i64; 3]> {
+    let numbers: Vec<i64> = text
+        .split(separator)
+        .map(str::parse)
+        .collect::<Result<_, _>>()
+        .ok()?;
+    numbers.try_into().ok()
+}
+
+/// A UTC offset, `+0200` or `-0530`, in seconds east of UTC.
+fn offset_seconds(offset: &str) -> Option<i64> {
+    let sign = if offset.starts_with('-') { -1 } else { 1 };
+    let digits = offset.trim_start_matches(['+', '-']);
+    let hours: i64 = digits.get(..2)?.parse().ok()?;
+    let minutes: i64 = digits.get(2..4)?.parse().ok()?;
+    Some(sign * (hours * 3600 + minutes * 60))
 }
 
 fn field(value: &Value, key: &str) -> String {
@@ -446,6 +463,27 @@ mod tests {
         assert_eq!(parse_time("2026-10-02 10:00:00 +0000 UTC"), Some(1_790_935_200));
         assert_eq!(parse_time("2026-10-02 05:30:00 -0430 VET"), Some(1_790_935_200));
         assert_eq!(parse_time("yesterday"), None);
+    }
+
+    #[test]
+    fn a_size_or_time_cut_short_or_in_another_unit_reads_as_none() {
+        assert_eq!(parse_size("2.5TB"), Some(2_500_000_000_000));
+        assert_eq!(parse_size("12MB"), Some(12_000_000));
+        assert_eq!(parse_size("3KB"), Some(3000));
+        assert_eq!(parse_size("7"), Some(7));
+        assert_eq!(parse_size("5XB"), None);
+        assert_eq!(parse_size(""), None);
+        assert_eq!(parse_time("2026-10 10:00:00 +0000 UTC"), None, "no day");
+        assert_eq!(parse_time("2026-10-02 10:00 +0000 UTC"), None, "no seconds");
+        assert_eq!(
+            parse_time("2026-10-02-1 10:00:00 +0000 UTC"),
+            None,
+            "a fourth part"
+        );
+        assert_eq!(parse_time("2026-10-02 10:00:00"), None, "no offset");
+        assert_eq!(parse_time("2026-10-02 10:00:00 +2"), None, "an offset cut short");
+        assert_eq!(parse_time("2026-10-02 10:00:00 +02x0"), None);
+        assert_eq!(parse_time("2026-1o-02 10:00:00 +0000"), None);
     }
 
     #[test]
