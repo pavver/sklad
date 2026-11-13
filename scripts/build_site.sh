@@ -1,11 +1,14 @@
 #!/bin/sh
-# Builds the website into site/dist: index.html in English and uk.html in Ukrainian.
-# Trunk writes every page as index.html, so the Ukrainian one is built apart and renamed.
+# Builds the website into site/dist: index.html in English, and uk.html, fr.html and ru.html.
+# Trunk writes every page as index.html, so each translation is built apart and renamed.
 set -eu
 cd "$(dirname "$0")/../site"
-rm -rf dist dist-uk
+rm -rf dist dist-page
 trunk build --release=true index.html
-trunk build --release=true --dist dist-uk uk.html
-cp -n dist-uk/* dist/ 2>/dev/null || true
-cp dist-uk/index.html dist/uk.html
-rm -rf dist-uk dist/.trunk-lock
+for page in uk fr ru; do
+  trunk build --release=true --dist dist-page "$page.html"
+  cp -n dist-page/* dist/ 2>/dev/null || true
+  cp dist-page/index.html "dist/$page.html"
+  rm -rf dist-page
+done
+rm -rf dist/.trunk-lock

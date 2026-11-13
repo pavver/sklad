@@ -43,8 +43,8 @@ impl Backend for NoRemoval {
 struct Entry {
     title: &'static str,
     package: &'static str,
-    about_en: &'static str,
-    about_uk: &'static str,
+    /// What the program is, in the order of `Lang::ALL`: Ukrainian, English, French, Russian.
+    about: [&'static str; 4],
     license: &'static str,
     site: &'static str,
     section: Section,
@@ -71,12 +71,11 @@ fn extra() -> Source {
     Source::Repo("extra".to_owned())
 }
 
-fn program(title: &'static str, package: &'static str, about: [&'static str; 2]) -> Entry {
+fn program(title: &'static str, package: &'static str, about: [&'static str; 4]) -> Entry {
     Entry {
         title,
         package,
-        about_en: about[0],
-        about_uk: about[1],
+        about,
         license: "GPL-3.0-or-later",
         site: "https://archlinux.org/packages/",
         section: Section::Utilities,
@@ -96,14 +95,28 @@ fn entries() -> Vec<Entry> {
             ..program(
                 "Blender",
                 "blender",
-                ["3D creation suite", "Набір для створення 3D"],
+                [
+                    "Набір для створення 3D",
+                    "3D creation suite",
+                    "Suite de création 3D",
+                    "Пакет для создания 3D",
+                ],
             )
         },
         Entry {
             section: Section::Graphics,
             megabytes: 412,
             usage: plasma(210),
-            ..program("GIMP", "gimp", ["Image editor", "Редактор зображень"])
+            ..program(
+                "GIMP",
+                "gimp",
+                [
+                    "Редактор зображень",
+                    "Image editor",
+                    "Éditeur d'images",
+                    "Редактор изображений",
+                ],
+            )
         },
         Entry {
             section: Section::Multimedia,
@@ -113,7 +126,12 @@ fn entries() -> Vec<Entry> {
             ..program(
                 "Audacity",
                 "org.audacityteam.Audacity",
-                ["Audio editor", "Звуковий редактор"],
+                [
+                    "Звуковий редактор",
+                    "Audio editor",
+                    "Éditeur audio",
+                    "Звуковой редактор",
+                ],
             )
         },
         Entry {
@@ -124,7 +142,12 @@ fn entries() -> Vec<Entry> {
             ..program(
                 "LibreOffice",
                 "libreoffice-fresh",
-                ["Office suite", "Офісний пакет"],
+                [
+                    "Офісний пакет",
+                    "Office suite",
+                    "Suite bureautique",
+                    "Офисный пакет",
+                ],
             )
         },
         Entry {
@@ -132,14 +155,32 @@ fn entries() -> Vec<Entry> {
             megabytes: 22,
             reason: Reason::Dependency,
             usage: plasma(12),
-            ..program("Gwenview", "gwenview", ["Image viewer", "Переглядач зображень"])
+            ..program(
+                "Gwenview",
+                "gwenview",
+                [
+                    "Переглядач зображень",
+                    "Image viewer",
+                    "Visionneuse d'images",
+                    "Просмотрщик изображений",
+                ],
+            )
         },
         Entry {
             section: Section::Office,
             megabytes: 18,
             reason: Reason::Dependency,
             usage: plasma(5),
-            ..program("Okular", "okular", ["Document viewer", "Переглядач документів"])
+            ..program(
+                "Okular",
+                "okular",
+                [
+                    "Переглядач документів",
+                    "Document viewer",
+                    "Visionneuse de documents",
+                    "Просмотрщик документов",
+                ],
+            )
         },
         Entry {
             section: Section::Development,
@@ -147,30 +188,48 @@ fn entries() -> Vec<Entry> {
             source: Source::Aur,
             usage: plasma(1),
             license: "MIT",
-            ..program("VSCodium", "vscodium-bin", ["Code editor", "Редактор коду"])
+            ..program(
+                "VSCodium",
+                "vscodium-bin",
+                ["Редактор коду", "Code editor", "Éditeur de code", "Редактор кода"],
+            )
         },
         Entry {
             section: Section::Multimedia,
             megabytes: 75,
             usage: Usage::NoRecord,
-            ..program("VLC", "vlc", ["Media player", "Медіапрогравач"])
+            ..program(
+                "VLC",
+                "vlc",
+                [
+                    "Медіапрогравач",
+                    "Media player",
+                    "Lecteur multimédia",
+                    "Медиапроигрыватель",
+                ],
+            )
         },
         Entry {
             section: Section::Internet,
             megabytes: 260,
             usage: Usage::Running,
             license: "MPL-2.0",
-            ..program("Firefox", "firefox", ["Web browser", "Вебпереглядач"])
+            ..program(
+                "Firefox",
+                "firefox",
+                ["Вебпереглядач", "Web browser", "Navigateur web", "Веб-браузер"],
+            )
         },
     ]
 }
 
 fn item_of(entry: Entry, lang: Lang) -> Item {
-    // The README has English and Ukrainian pictures only.
-    let about = match lang {
-        Lang::Uk => entry.about_uk,
-        _ => entry.about_en,
-    };
+    let about = Lang::ALL
+        .iter()
+        .position(|known| *known == lang)
+        .and_then(|index| entry.about.get(index))
+        .copied()
+        .unwrap_or_default();
     let removal = match entry.source {
         Source::Flatpak => Removal::Flatpak {
             app_id: entry.package.to_owned(),
@@ -398,6 +457,8 @@ fn pictures(lang: Lang) -> Result<(), String> {
 #[test]
 #[ignore = "writes the pictures of the README"]
 fn pictures_of_the_readme() -> Result<(), String> {
-    pictures(Lang::En)?;
-    pictures(Lang::Uk)
+    for lang in Lang::ALL {
+        pictures(lang)?;
+    }
+    Ok(())
 }

@@ -7,8 +7,8 @@ use leptos::prelude::*;
 use operator_ui::prelude::*;
 use operator_ui::tokens::icons;
 use text::{
-    ADD_REPOSITORY, APT_ADD_REPOSITORY, APT_INSTALL, DESIGN_SYSTEM, EN, FROM_SOURCE, INSTALL, PAGES,
-    REPOSITORY, TRUST_KEY, Text, UK,
+    ADD_REPOSITORY, APT_ADD_REPOSITORY, APT_INSTALL, DESIGN_SYSTEM, EN, FR, FROM_SOURCE, INSTALL, PAGES,
+    REPOSITORY, RU, TRUST_KEY, Text, UK,
 };
 
 /// The texts for the language of the page.
@@ -19,6 +19,8 @@ fn page_text() -> &'static Text {
         .and_then(|e| e.get_attribute("lang"));
     match lang.as_deref() {
         Some("uk") => &UK,
+        Some("fr") => &FR,
+        Some("ru") => &RU,
         _ => &EN,
     }
 }

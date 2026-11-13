@@ -1,6 +1,6 @@
-//! Every word of the website, in English and Ukrainian.
+//! Every word of the website, in English, Ukrainian, French and Russian.
 
-/// The commands are the same in both languages.
+/// The commands are the same in every language.
 pub const TRUST_KEY: &str = "curl -sL https://pavver.github.io/sklad/sklad.asc | sudo pacman-key --add -
 sudo pacman-key --lsign-key EB0FE0C7F0FEBBD1A40F8F93A7A3ED14D1C98D8D";
 /// Appends the repository to pacman.conf unless it is already there.
@@ -16,7 +16,12 @@ pub const FROM_SOURCE: &str = "cargo install --git https://github.com/pavver/skl
 
 /// Each page in its language: the name in that language, then in English, so a search finds it
 /// either way. English needs no second name.
-pub const PAGES: [(&str, &str); 2] = [("Українська (Ukrainian)", "uk.html"), ("English", "./")];
+pub const PAGES: [(&str, &str); 4] = [
+    ("Українська (Ukrainian)", "uk.html"),
+    ("English", "./"),
+    ("Français (French)", "fr.html"),
+    ("Русский (Russian)", "ru.html"),
+];
 
 pub const REPOSITORY: &str = "https://github.com/pavver/sklad";
 pub const DESIGN_SYSTEM: &str = "https://github.com/pavver/operator-design-system";
@@ -85,7 +90,7 @@ pub const EN: Text = Text {
     features: [
         Feature {
             title: "One catalogue",
-            text: "Programs, console tools, libraries, fonts, drivers and metapackages from every source.",
+            text: "Programs, console tools, libraries, fonts, drivers and metapackages from every source, plus Docker containers, images and volumes, and Python environments.",
         },
         Feature {
             title: "Last launch",
@@ -108,8 +113,8 @@ pub const EN: Text = Text {
             text: "Start a program from its card, and select and copy any text.",
         },
         Feature {
-            title: "Two languages",
-            text: "Ukrainian and English, light and dark themes.",
+            title: "Four languages",
+            text: "Ukrainian, English, French and Russian, light and dark themes.",
         },
     ],
     removal_title: "Safe removal",
@@ -165,7 +170,7 @@ pub const UK: Text = Text {
     features: [
         Feature {
             title: "Один каталог",
-            text: "Програми, консольні інструменти, бібліотеки, шрифти, драйвери й метапакети з усіх джерел.",
+            text: "Програми, консольні інструменти, бібліотеки, шрифти, драйвери й метапакети з усіх джерел, а ще контейнери, образи й томи Docker і середовища Python.",
         },
         Feature {
             title: "Останній запуск",
@@ -188,8 +193,8 @@ pub const UK: Text = Text {
             text: "Запускайте програму з її картки, виділяйте й копіюйте будь-який текст.",
         },
         Feature {
-            title: "Дві мови",
-            text: "Українська та англійська, світла й темна теми.",
+            title: "Чотири мови",
+            text: "Українська, англійська, французька й російська, світла й темна теми.",
         },
     ],
     removal_title: "Безпечне видалення",
@@ -225,5 +230,165 @@ pub const UK: Text = Text {
         },
     ],
     license: "Ліцензія MIT",
+    design_system: "Дизайн-система Operator UI",
+};
+
+pub const FR: Text = Text {
+    name: "Sklad",
+    tagline: "Tout ce qui est installé sur Arch Linux, Debian et Ubuntu, dans une seule liste",
+    language_name: "Français (French)",
+    dark_mode: "Thème sombre",
+    headline: "Tout ce qui est installé sur Arch Linux, Debian et Ubuntu, dans une seule liste. Supprimez ce dont vous ne vous servez plus.",
+    lead: "Les gestionnaires de paquets ne montrent que ce qu'ils ont installé eux-mêmes. Sklad réunit dans une seule liste les paquets pacman, AUR et apt, les applications Flatpak, les jeux Steam, les chaînes d'outils Rust, les outils Cargo, npm et Python, les environnements Python, les conteneurs et images Docker, et les fichiers hors gestionnaires. Triez-la par dernier lancement, lisez ce qu'est chaque entrée, et désinstallez-la avec une commande que vous voyez avant qu'elle ne s'exécute.",
+    install_action: "Installer depuis le dépôt pacman ou apt",
+    source_action: "Code sur GitHub",
+    catalogue_shot: "fr-catalogue.png",
+    catalogue_alt: "La fenêtre de Sklad : les programmes installés avec leur icône, leur date d'installation, leur taille et leur dernier lancement, et la fiche du programme choisi",
+    early_title: "Version précoce",
+    early_text: "Testé sur Arch Linux avec KDE Plasma sous Wayland, et comparé à apt sur Debian et Ubuntu. Lisez la commande affichée par la fenêtre avant de la confirmer.",
+    features_title: "Ce qu'il fait",
+    features: [
+        Feature {
+            title: "Un seul catalogue",
+            text: "Programmes, outils en console, bibliothèques, polices, pilotes et métapaquets de toutes les sources, ainsi que les conteneurs, images et volumes Docker et les environnements Python.",
+        },
+        Feature {
+            title: "Dernier lancement",
+            text: "D'après le journal de KDE Plasma et Steam, pour trouver ce que vous n'utilisez plus.",
+        },
+        Feature {
+            title: "Les orphelins à part",
+            text: "Les dépendances inutiles et les paquets que vous avez installés vous-même, chacun dans son filtre.",
+        },
+        Feature {
+            title: "Suppression sûre",
+            text: "pacman ou apt vérifie d'abord la liste, et la commande exacte est toujours à l'écran.",
+        },
+        Feature {
+            title: "Hors d'un métapaquet",
+            text: "Le programme part, le reste du métapaquet reste.",
+        },
+        Feature {
+            title: "Lancer et copier",
+            text: "Lancez un programme depuis sa fiche, sélectionnez et copiez n'importe quel texte.",
+        },
+        Feature {
+            title: "Quatre langues",
+            text: "Ukrainien, anglais, français et russe, thèmes clair et sombre.",
+        },
+    ],
+    removal_title: "Suppression sûre",
+    removal_shot: "fr-removal.png",
+    removal_alt: "La fenêtre de suppression de Sklad pour un programme retenu par un métapaquet : la liste des paquets et la commande",
+    removal_text: "La liste des paquets est calculée sur le graphe des dépendances selon les mêmes règles que pacman -Rs ou apt-get remove --auto-remove, puis le gestionnaire de paquets la vérifie. Si les listes diffèrent, rien ne se passe. Les paquets système importants et les fichiers hors du dossier personnel demandent une confirmation à part.",
+    install_title: "Installation",
+    arch_tab: "Arch Linux",
+    debian_tab: "Debian, Ubuntu",
+    apt_add_repository: "Faites confiance à la clé et ajoutez le dépôt apt ; il faut Debian 12, Ubuntu 22.04 ou plus récent, et relancer les commandes ne change rien :",
+    apt_install: "Installez-le comme n'importe quel paquet ; les mises à jour arrivent avec apt upgrade :",
+    trust_key: "Faites confiance une fois à la clé qui signe les paquets :",
+    add_repository: "Ajoutez le dépôt à /etc/pacman.conf ; la commande ne fait rien s'il y est déjà :",
+    install: "Installez-le comme n'importe quel paquet ; les mises à jour arrivent avec pacman -Syu :",
+    from_source: "Ou compilez-le depuis le code source :",
+    questions_title: "Questions",
+    questions: [
+        Question {
+            title: "Comment trouver les paquets inutilisés sur Arch Linux, Debian ou Ubuntu ?",
+            answer: "pacman -Qdtq et apt autoremove trouvent les dépendances orphelines, mais pas les programmes que vous avez installés puis délaissés. Sklad trie tout selon le dernier lancement enregistré par Plasma et Steam, si bien que les programmes que vous n'avez pas ouverts depuis des mois arrivent en tête.",
+        },
+        Question {
+            title: "En quoi est-il différent de Pamac, Octopi, Synaptic ou BleachBit ?",
+            answer: "Pamac, Octopi et Synaptic gèrent les paquets de la distribution, et BleachBit nettoie les caches. Sklad montre dans une seule liste ce qu'ont installé pacman, l'AUR, apt, Flatpak, Steam, Docker et les gestionnaires de paquets des langages, et supprime chaque entrée par le gestionnaire qui l'a installée.",
+        },
+        Question {
+            title: "Faut-il KDE Plasma ?",
+            answer: "Il est testé sur KDE Plasma sous Wayland. Le dernier lancement des programmes vient du journal de Plasma, donc sur les autres bureaux il n'est connu que pour les jeux Steam ; le catalogue et la suppression fonctionnent partout.",
+        },
+        Question {
+            title: "Est-ce sûr ?",
+            answer: "Sklad ne supprime rien sans montrer la commande, et pacman ou apt vérifie la liste avant l'exécution. C'est une version précoce : lisez la commande avant de confirmer.",
+        },
+    ],
+    license: "Licence MIT",
+    design_system: "Système de design Operator UI",
+};
+
+pub const RU: Text = Text {
+    name: "Склад",
+    tagline: "Всё установленное в Arch Linux, Debian и Ubuntu одним списком",
+    language_name: "Русский (Russian)",
+    dark_mode: "Тёмная тема",
+    headline: "Всё установленное в Arch Linux, Debian и Ubuntu одним списком. Удаляйте то, чем не пользуетесь.",
+    lead: "Менеджеры пакетов показывают только то, что установили сами. Склад собирает в один список пакеты pacman, AUR и apt, программы Flatpak, игры Steam, инструментарии Rust, инструменты Cargo, npm и Python, окружения Python, контейнеры и образы Docker и файлы вне менеджеров. Отсортируйте его по последнему запуску, прочитайте, что это такое, и удалите командой, которую видно ещё до запуска.",
+    install_action: "Установить из репозитория pacman или apt",
+    source_action: "Код на GitHub",
+    catalogue_shot: "ru-catalogue.png",
+    catalogue_alt: "Окно Склада: список установленных программ с иконками, датой установки, размером и последним запуском и карточка выбранной программы",
+    early_title: "Ранняя версия",
+    early_text: "Проверено в Arch Linux с KDE Plasma на Wayland и сверено с apt в Debian и Ubuntu. Читайте команду в окне, прежде чем подтвердить.",
+    features_title: "Что он умеет",
+    features: [
+        Feature {
+            title: "Один каталог",
+            text: "Программы, консольные инструменты, библиотеки, шрифты, драйверы и метапакеты из всех источников, а также контейнеры, образы и тома Docker и окружения Python.",
+        },
+        Feature {
+            title: "Последний запуск",
+            text: "По журналу KDE Plasma и данным Steam, чтобы найти то, чем давно не пользуетесь.",
+        },
+        Feature {
+            title: "Ненужное отдельно",
+            text: "Ненужные зависимости и пакеты, установленные вами, в собственных фильтрах.",
+        },
+        Feature {
+            title: "Безопасное удаление",
+            text: "Список сначала проверяет pacman или apt, а точная команда всегда на экране.",
+        },
+        Feature {
+            title: "Удаление из метапакета",
+            text: "Программа уходит, остальной метапакет остаётся.",
+        },
+        Feature {
+            title: "Запуск и копирование",
+            text: "Запускайте программу из её карточки, выделяйте и копируйте любой текст.",
+        },
+        Feature {
+            title: "Четыре языка",
+            text: "Украинский, английский, французский и русский, светлая и тёмная темы.",
+        },
+    ],
+    removal_title: "Безопасное удаление",
+    removal_shot: "ru-removal.png",
+    removal_alt: "Окно удаления Склада для программы из метапакета: список пакетов и команда",
+    removal_text: "Список пакетов считается на графе зависимостей по тем же правилам, что и в pacman -Rs или apt-get remove --auto-remove, а затем его проверяет менеджер пакетов. Если списки различаются, ничего не происходит. Важные системные пакеты и файлы вне домашней папки требуют отдельного подтверждения.",
+    install_title: "Установка",
+    arch_tab: "Arch Linux",
+    debian_tab: "Debian, Ubuntu",
+    apt_add_repository: "Доверьте ключ и добавьте репозиторий apt; нужны Debian 12, Ubuntu 22.04 или новее, а повторный запуск команд ничего не изменит:",
+    apt_install: "Установите как обычный пакет; обновления придут вместе с apt upgrade:",
+    trust_key: "Один раз доверьте ключ, которым подписаны пакеты:",
+    add_repository: "Добавьте репозиторий в /etc/pacman.conf; если он там уже есть, команда ничего не изменит:",
+    install: "Установите как обычный пакет; обновления придут вместе с pacman -Syu:",
+    from_source: "Или соберите из исходного кода:",
+    questions_title: "Вопросы",
+    questions: [
+        Question {
+            title: "Как найти ненужные пакеты в Arch Linux, Debian или Ubuntu?",
+            answer: "pacman -Qdtq и apt autoremove найдут осиротевшие зависимости, но не программы, которые вы установили и забросили. Склад сортирует всё по последнему запуску, который записали Plasma и Steam, так что программы, которые вы не открывали месяцами, окажутся вверху.",
+        },
+        Question {
+            title: "Чем он отличается от Pamac, Octopi, Synaptic или BleachBit?",
+            answer: "Pamac, Octopi и Synaptic управляют пакетами дистрибутива, BleachBit чистит кэши. Склад показывает установленное через pacman, AUR, apt, Flatpak, Steam, Docker и менеджеры пакетов языков в одном списке и удаляет каждую запись тем менеджером, который её установил.",
+        },
+        Question {
+            title: "Нужна ли KDE Plasma?",
+            answer: "Программа проверена в KDE Plasma на Wayland. Последний запуск программ берётся из журнала Plasma, поэтому в других окружениях он известен только для игр Steam; каталог и удаление от окружения не зависят.",
+        },
+        Question {
+            title: "Это безопасно?",
+            answer: "Склад ничего не удаляет, не показав команду, а pacman или apt проверяет список ещё до запуска. Это ранняя версия, поэтому читайте команду, прежде чем подтвердить.",
+        },
+    ],
+    license: "Лицензия MIT",
     design_system: "Дизайн-система Operator UI",
 };

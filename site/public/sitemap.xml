@@ -2,10 +2,30 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://pavver.github.io/sklad/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://pavver.github.io/sklad/"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://pavver.github.io/sklad/uk.html"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://pavver.github.io/sklad/fr.html"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://pavver.github.io/sklad/ru.html"/>
   </url>
   <url>
     <loc>https://pavver.github.io/sklad/uk.html</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://pavver.github.io/sklad/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://pavver.github.io/sklad/uk.html"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://pavver.github.io/sklad/fr.html"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://pavver.github.io/sklad/ru.html"/>
+  </url>
+  <url>
+    <loc>https://pavver.github.io/sklad/fr.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://pavver.github.io/sklad/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://pavver.github.io/sklad/uk.html"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://pavver.github.io/sklad/fr.html"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://pavver.github.io/sklad/ru.html"/>
+  </url>
+  <url>
+    <loc>https://pavver.github.io/sklad/ru.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://pavver.github.io/sklad/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://pavver.github.io/sklad/uk.html"/>
+    <xhtml:link rel="alternate" hreflang="fr" href="https://pavver.github.io/sklad/fr.html"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://pavver.github.io/sklad/ru.html"/>
   </url>
 </urlset>
