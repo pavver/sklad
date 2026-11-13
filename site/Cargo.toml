@@ -10,7 +10,7 @@ publish = false
 [workspace]
 
 [dependencies]
-operator-ui = { git = "https://github.com/pavver/operator-design-system", rev = "66afa5e61508a1b51fd98f59c211f820348d2b84" }
+operator-ui = { git = "https://github.com/pavver/operator-design-system", rev = "f03c6da3f391f96d3a4dfb666e5c21744c04c3b0" }
 leptos = { version = "0.8.22", features = ["csr"] }
 console_error_panic_hook = "0.1.7"
 web-sys = { version = "0.3.107", features = ["Document", "Element", "Location", "MediaQueryList", "Window"] }

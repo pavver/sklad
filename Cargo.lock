@@ -2455,7 +2455,7 @@ dependencies = [
 [[package]]
 name = "operator-ui-tokens"
 version = "0.6.0"
-source = "git+https://github.com/pavver/operator-design-system?rev=66afa5e61508a1b51fd98f59c211f820348d2b84#66afa5e61508a1b51fd98f59c211f820348d2b84"
+source = "git+https://github.com/pavver/operator-design-system?rev=f03c6da3f391f96d3a4dfb666e5c21744c04c3b0#f03c6da3f391f96d3a4dfb666e5c21744c04c3b0"
 
 [[package]]
 name = "orbclient"
