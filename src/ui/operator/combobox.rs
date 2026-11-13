@@ -68,59 +68,28 @@ impl Combobox<'_> {
         let (rect, _) = ui.allocate_exact_size(vec2(self.width, height), Sense::hover());
         ui.painter().rect_filled(rect, 0.0, palette.surface);
         let arrow = Rect::from_min_max(pos2(rect.right() - height, rect.top()), rect.max);
+        let mut chosen = None;
+        if focused_before {
+            let matches = self.matches(&memory);
+            chosen = self.keys(ui, &mut memory, &matches, &committed);
+        }
         let text_rect = Rect::from_min_max(
             pos2(rect.left() + du(dim::PAD_CARD), rect.top()),
             pos2(arrow.left(), rect.bottom()),
         );
-
-        let mut chosen = None;
-        let matches = self.matches(&memory);
-        if focused_before {
-            chosen = self.keys(ui, &mut memory, &matches, &committed);
-        }
-
-        let edit = TextEdit::singleline(&mut memory.query)
-            .id(field_id)
-            .font(Type::Body.font())
-            .text_color(palette.text_primary)
-            .frame(egui::Frame::NONE)
-            .margin(Margin::ZERO)
-            .desired_width(text_rect.width())
-            .min_size(text_rect.size())
-            .align(Align2::LEFT_CENTER);
-        let row = ui.spacing().interact_size.y;
-        ui.spacing_mut().interact_size.y = height;
-        // `place` leaves the layout cursor alone: the field already took its whole rectangle.
-        let response = ui.place(text_rect, edit);
-        ui.spacing_mut().interact_size.y = row;
-        response.widget_info(|| WidgetInfo::labeled(egui::Role::ComboBox, true, self.label));
+        let response = self.field(ui, &mut memory.query, text_rect, palette);
         let arrow_response = ui.interact(arrow, self.id.with("arrow"), Sense::click());
-        if arrow_response.clicked() {
-            response.request_focus();
-            self.open(&mut memory, &committed);
-        }
-        if response.gained_focus() || response.clicked() {
-            self.open(&mut memory, &committed);
-        }
-        if response.changed() {
-            memory.filtering = true;
-            memory.active = 0;
-            memory.open = true;
-            memory.reveal = Some(false);
-        }
-
-        let pointer_on_popup = memory
-            .popup
-            .zip(ctx.pointer_latest_pos())
-            .is_some_and(|(popup, at)| popup.contains(at));
-        if response.lost_focus() && !pointer_on_popup {
-            self.settle(&mut memory, &committed, &mut chosen);
-        }
+        self.react(
+            ui,
+            &mut memory,
+            &response,
+            &arrow_response,
+            &committed,
+            &mut chosen,
+        );
+        // The look of this frame is what the field was before a pick in the list closes it.
         let focused = response.has_focus();
-        if memory.open && !focused && !pointer_on_popup && ctx.input(|i| i.pointer.any_released()) {
-            self.settle(&mut memory, &committed, &mut chosen);
-        }
-
+        let in_use = focused || memory.open;
         if memory.open {
             if let Some(pick) = self.popup(ui, rect, &mut memory, selected, palette) {
                 memory.query.clone_from(&self.options[pick]);
@@ -132,12 +101,76 @@ impl Combobox<'_> {
         } else {
             memory.popup = None;
         }
+        self.paint_chrome(ui, rect, arrow, focused, in_use, palette);
+        if response.hovered() {
+            ctx.set_cursor_icon(CursorIcon::Text);
+        }
+        if arrow_response.hovered() {
+            ctx.set_cursor_icon(CursorIcon::PointingHand);
+        }
+        ctx.data_mut(|data| data.insert_temp(key, memory));
+        chosen.filter(|&pick| pick != selected)
+    }
 
-        let lit = ctx.animate_bool_with_time(
-            self.id.with("lit"),
-            focused || memory.open,
-            secs(motion::STATE_COLOR_MS),
-        );
+    /// The text field, borderless, over the whole field but the arrow.
+    fn field(&self, ui: &mut Ui, query: &mut String, rect: Rect, palette: &Palette) -> egui::Response {
+        let edit = TextEdit::singleline(query)
+            .id(self.id.with("field"))
+            .font(Type::Body.font())
+            .text_color(palette.text_primary)
+            .frame(egui::Frame::NONE)
+            .margin(Margin::ZERO)
+            .desired_width(rect.width())
+            .min_size(rect.size())
+            .align(Align2::LEFT_CENTER);
+        let row = ui.spacing().interact_size.y;
+        ui.spacing_mut().interact_size.y = rect.height();
+        // `place` leaves the layout cursor alone: the field already took its whole rectangle.
+        let response = ui.place(rect, edit);
+        ui.spacing_mut().interact_size.y = row;
+        response.widget_info(|| WidgetInfo::labeled(egui::Role::ComboBox, true, self.label));
+        response
+    }
+
+    /// Opens the list on a click or focus, filters it on typing, and settles the text when the
+    /// field is left.
+    fn react(
+        &self,
+        ui: &Ui,
+        memory: &mut Memory,
+        response: &egui::Response,
+        arrow: &egui::Response,
+        committed: &str,
+        chosen: &mut Option<usize>,
+    ) {
+        if arrow.clicked() {
+            response.request_focus();
+        }
+        if arrow.clicked() || response.gained_focus() || response.clicked() {
+            self.open(memory, committed);
+        }
+        if response.changed() {
+            memory.filtering = true;
+            memory.active = 0;
+            memory.open = true;
+            memory.reveal = Some(false);
+        }
+        let pointer_on_popup = memory
+            .popup
+            .zip(ui.ctx().pointer_latest_pos())
+            .is_some_and(|(popup, at)| popup.contains(at));
+        let released_elsewhere =
+            memory.open && !response.has_focus() && ui.input(|input| input.pointer.any_released());
+        if (response.lost_focus() || released_elsewhere) && !pointer_on_popup {
+            self.settle(memory, committed, chosen);
+        }
+    }
+
+    /// The arrow, lit while the field is in use, and the border.
+    fn paint_chrome(&self, ui: &Ui, rect: Rect, arrow: Rect, focused: bool, in_use: bool, palette: &Palette) {
+        let lit = ui
+            .ctx()
+            .animate_bool_with_time(self.id.with("lit"), in_use, secs(motion::STATE_COLOR_MS));
         let glyph = mix(palette.text_secondary, palette.accent, lit);
         paint_icon(
             ui,
@@ -152,14 +185,6 @@ impl Combobox<'_> {
             ControlState::Idle
         };
         paint_border(ui, rect, Outline::of(state, palette), &Look::IDLE, palette);
-        if response.hovered() {
-            ctx.set_cursor_icon(CursorIcon::Text);
-        }
-        if arrow_response.hovered() {
-            ctx.set_cursor_icon(CursorIcon::PointingHand);
-        }
-        ctx.data_mut(|data| data.insert_temp(key, memory));
-        chosen.filter(|&pick| pick != selected)
     }
 
     /// Indices of the options the list shows: all of them until the person types.
@@ -220,20 +245,24 @@ impl Combobox<'_> {
             committed.clone_into(&mut memory.query);
         }
         if take(Key::Enter) {
-            let pick = matches.get(memory.active).copied().filter(|_| memory.open);
-            let mut chosen = None;
-            match pick {
-                Some(index) => {
-                    memory.query.clone_from(&self.options[index]);
-                    memory.open = false;
-                    memory.filtering = false;
-                    chosen = Some(index);
-                }
-                None => self.settle(memory, committed, &mut chosen),
-            }
-            return chosen;
+            return self.enter(memory, matches, committed);
         }
         None
+    }
+
+    /// Enter takes the active option of an open list, and settles the text otherwise.
+    fn enter(&self, memory: &mut Memory, matches: &[usize], committed: &str) -> Option<usize> {
+        let mut chosen = None;
+        match matches.get(memory.active).copied().filter(|_| memory.open) {
+            Some(index) => {
+                memory.query.clone_from(&self.options[index]);
+                memory.open = false;
+                memory.filtering = false;
+                chosen = Some(index);
+            }
+            None => self.settle(memory, committed, &mut chosen),
+        }
+        chosen
     }
 
     /// The DropdownMenu popup under the field. Returns the option clicked.
@@ -365,5 +394,108 @@ fn paint_option(ui: &Ui, cell: Rect, option: &str, query: &str, selected: bool, 
         let at = Rect::from_min_max(pos2(left, cell.top()), pos2(cell.right(), cell.bottom()));
         paint_aligned(ui, at, piece, egui::Align::Min, colour);
         left += width;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::operator::tokens::LIGHT;
+    use eframe::egui::accesskit::Role;
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    const OPTIONS: [&str; 3] = ["English", "Français", "Українська"];
+
+    /// The chosen index, which a choice from the field changes.
+    fn harness() -> Harness<'static, usize> {
+        let options: Vec<String> = OPTIONS.map(str::to_owned).to_vec();
+        let mut harness = Harness::new_ui_state(
+            move |ui, chosen: &mut usize| {
+                let field = Combobox {
+                    id: Id::unique("language"),
+                    options: &options,
+                    label: "Language",
+                    no_matches: "Nothing",
+                    width: 200.0,
+                };
+                if let Some(pick) = field.show(ui, *chosen, &LIGHT) {
+                    *chosen = pick;
+                }
+            },
+            0,
+        );
+        harness.run();
+        harness
+    }
+
+    fn focus(harness: &mut Harness<'_, usize>) {
+        harness.get_by_role(Role::ComboBox).focus();
+        harness.run();
+    }
+
+    fn press(harness: &mut Harness<'_, usize>, key: Key) {
+        harness.key_press(key);
+        harness.run();
+    }
+
+    /// Replaces the text of the field, as typing over a selection does.
+    fn type_over(harness: &mut Harness<'_, usize>, text: &str) {
+        harness.key_press_modifiers(Modifiers::COMMAND, Key::A);
+        harness.run();
+        harness.get_by_role(Role::ComboBox).type_text(text);
+        harness.run();
+    }
+
+    #[test]
+    fn arrows_walk_the_list_around_and_enter_chooses() {
+        let mut harness = harness();
+        focus(&mut harness);
+        // Focus opens the list on the chosen option, the first.
+        press(&mut harness, Key::ArrowDown);
+        press(&mut harness, Key::ArrowUp);
+        press(&mut harness, Key::ArrowUp);
+        press(&mut harness, Key::Enter);
+        assert_eq!(*harness.state(), 2, "up from the first wraps to the last");
+    }
+
+    #[test]
+    fn typing_filters_and_enter_takes_the_first_match() {
+        let mut harness = harness();
+        focus(&mut harness);
+        type_over(&mut harness, "ська");
+        press(&mut harness, Key::Enter);
+        assert_eq!(*harness.state(), 2);
+    }
+
+    #[test]
+    fn escape_keeps_the_choice_and_restores_the_text() {
+        let mut harness = harness();
+        focus(&mut harness);
+        type_over(&mut harness, "Fra");
+        press(&mut harness, Key::Escape);
+        press(&mut harness, Key::Enter);
+        assert_eq!(*harness.state(), 0, "nothing chosen");
+        assert_eq!(
+            harness.get_by_role(Role::ComboBox).value().as_deref(),
+            Some("English")
+        );
+    }
+
+    #[test]
+    fn leaving_the_field_commits_an_exact_name_and_drops_the_rest() {
+        let mut harness = harness();
+        focus(&mut harness);
+        type_over(&mut harness, "xyz");
+        press(&mut harness, Key::Enter);
+        assert_eq!(*harness.state(), 0, "no option is called so");
+        assert_eq!(
+            harness.get_by_role(Role::ComboBox).value().as_deref(),
+            Some("English")
+        );
+        focus(&mut harness);
+        type_over(&mut harness, "Français");
+        press(&mut harness, Key::Tab);
+        assert_eq!(*harness.state(), 1, "the exact name of an option chooses it");
     }
 }
