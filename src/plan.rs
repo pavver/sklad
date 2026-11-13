@@ -109,58 +109,75 @@ pub fn is_critical(name: &str) -> bool {
     EXACT.contains(&name) || PREFIXES.iter().any(|prefix| name.starts_with(prefix))
 }
 
+fn push_once(list: &mut Vec<usize>, index: usize) {
+    if !list.contains(&index) {
+        list.push(index);
+    }
+}
+
+type Providers = HashMap<String, Vec<usize>>;
+
+/// Every name a package answers to: its own and what it provides, bare and versioned.
+fn providers(nodes: &[Node]) -> Providers {
+    let mut providers: Providers = HashMap::new();
+    for (index, node) in nodes.iter().enumerate() {
+        providers.entry(node.name.clone()).or_default().push(index);
+        for provided in &node.provides {
+            for key in [provided.as_str(), bare_name(provided)] {
+                push_once(providers.entry(key.to_owned()).or_default(), index);
+            }
+        }
+    }
+    providers
+}
+
+/// Alternatives are one dependency: it holds while any of them is installed.
+fn add_alternatives(nodes: &[Node], providers: &mut Providers) {
+    let alternatives: Vec<String> = nodes
+        .iter()
+        .flat_map(|node| node.depends.iter().chain(&node.recommends))
+        .filter(|dep| dep.contains('|'))
+        .cloned()
+        .collect();
+    for dep in alternatives {
+        let mut any = Vec::new();
+        for choice in dep.split('|').map(str::trim) {
+            let found = providers.get(choice).or_else(|| providers.get(bare_name(choice)));
+            for &provider in found.map_or(&[][..], Vec::as_slice) {
+                push_once(&mut any, provider);
+            }
+        }
+        providers.insert(dep, any);
+    }
+}
+
+/// For each package, the others that name it in `list`.
+fn users(nodes: &[Node], providers: &Providers, list: fn(&Node) -> &Vec<String>) -> Vec<Vec<usize>> {
+    let mut users = vec![Vec::new(); nodes.len()];
+    for (index, node) in nodes.iter().enumerate() {
+        for dep in list(node) {
+            let exact = providers.get(dep).or_else(|| providers.get(bare_name(dep)));
+            for &provider in exact.map_or(&[][..], Vec::as_slice) {
+                if provider != index {
+                    push_once(&mut users[provider], index);
+                }
+            }
+        }
+    }
+    users
+}
+
 impl PackageDb {
     pub fn new(nodes: Vec<Node>) -> Self {
-        let mut by_name = HashMap::new();
-        let mut providers: HashMap<String, Vec<usize>> = HashMap::new();
-        for (index, node) in nodes.iter().enumerate() {
-            by_name.insert(node.name.clone(), index);
-            providers.entry(node.name.clone()).or_default().push(index);
-            for provided in &node.provides {
-                for key in [provided.as_str(), bare_name(provided)] {
-                    let list = providers.entry(key.to_owned()).or_default();
-                    if !list.contains(&index) {
-                        list.push(index);
-                    }
-                }
-            }
-        }
-        // Alternatives are one dependency: it holds while any of them is installed.
-        let alternatives: Vec<String> = nodes
+        let by_name = nodes
             .iter()
-            .flat_map(|node| node.depends.iter().chain(&node.recommends))
-            .filter(|dep| dep.contains('|'))
-            .cloned()
+            .enumerate()
+            .map(|(index, node)| (node.name.clone(), index))
             .collect();
-        for dep in alternatives {
-            let mut any: Vec<usize> = Vec::new();
-            for choice in dep.split('|').map(str::trim) {
-                let found = providers.get(choice).or_else(|| providers.get(bare_name(choice)));
-                for &provider in found.map_or(&[][..], Vec::as_slice) {
-                    if !any.contains(&provider) {
-                        any.push(provider);
-                    }
-                }
-            }
-            providers.insert(dep, any);
-        }
-        let edges = |list: fn(&Node) -> &Vec<String>| {
-            let mut users = vec![Vec::new(); nodes.len()];
-            for (index, node) in nodes.iter().enumerate() {
-                for dep in list(node) {
-                    let exact = providers.get(dep).or_else(|| providers.get(bare_name(dep)));
-                    for &provider in exact.map_or(&[][..], Vec::as_slice) {
-                        let known: &mut Vec<usize> = &mut users[provider];
-                        if provider != index && !known.contains(&index) {
-                            known.push(index);
-                        }
-                    }
-                }
-            }
-            users
-        };
-        let needed_by = edges(|node| &node.depends);
-        let wanted_by = edges(|node| &node.recommends);
+        let mut providers = providers(&nodes);
+        add_alternatives(&nodes, &mut providers);
+        let needed_by = users(&nodes, &providers, |node| &node.depends);
+        let wanted_by = users(&nodes, &providers, |node| &node.recommends);
         Self {
             nodes,
             by_name,
@@ -271,17 +288,18 @@ impl PackageDb {
     /// "Uses" counts a dependency that another package could also satisfy, because the system was
     /// left working with this one. Starts from everything reachable and drops what is held from
     /// outside until nothing changes, which also frees rings of packages needing each other.
-    fn add_unneeded(&self, gone: &mut HashSet<usize>, keep: &BTreeSet<usize>) {
+    /// What the removed packages pulled in, followed down: each may become unneeded.
+    fn pulled_in_by(&self, gone: &HashSet<usize>, keep: &BTreeSet<usize>) -> HashSet<usize> {
         let mut candidates = HashSet::new();
         let mut frontier: Vec<usize> = gone.iter().copied().collect();
         while let Some(current) = frontier.pop() {
             let node = &self.nodes[current];
             for dep in node.depends.iter().chain(&node.recommends) {
                 for &provider in self.providers_of(dep) {
+                    let found = &self.nodes[provider];
                     // apt never autoremoves an essential or required package.
-                    let pulled_in =
-                        self.nodes[provider].reason == Reason::Dependency && !self.nodes[provider].critical;
-                    if pulled_in
+                    let removable = found.reason == Reason::Dependency && !found.critical;
+                    if removable
                         && !gone.contains(&provider)
                         && !keep.contains(&provider)
                         && candidates.insert(provider)
@@ -291,16 +309,24 @@ impl PackageDb {
                 }
             }
         }
+        candidates
+    }
+
+    /// Whether a package that stays needs or wants this one.
+    fn is_held(&self, candidate: usize, gone: &HashSet<usize>, candidates: &HashSet<usize>) -> bool {
+        self.needed_by[candidate]
+            .iter()
+            .chain(&self.wanted_by[candidate])
+            .any(|user| !gone.contains(user) && !candidates.contains(user))
+    }
+
+    fn add_unneeded(&self, gone: &mut HashSet<usize>, keep: &BTreeSet<usize>) {
+        let mut candidates = self.pulled_in_by(gone, keep);
         loop {
             let held: Vec<usize> = candidates
                 .iter()
                 .copied()
-                .filter(|candidate| {
-                    self.needed_by[*candidate]
-                        .iter()
-                        .chain(&self.wanted_by[*candidate])
-                        .any(|user| !gone.contains(user) && !candidates.contains(user))
-                })
+                .filter(|candidate| self.is_held(*candidate, gone, &candidates))
                 .collect();
             if held.is_empty() {
                 break;
