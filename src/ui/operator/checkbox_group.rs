@@ -121,6 +121,59 @@ pub fn skeleton(ui: &mut Ui, tiles: usize, icon_size: IconSize, palette: &Palett
     }
 }
 
+/// A glyph tinted with the state of the tile, or a picture in its own colours.
+fn paint_tile_icon(
+    ui: &Ui,
+    icon: &TileIcon,
+    centre: egui::Pos2,
+    side: f32,
+    selected: bool,
+    palette: &Palette,
+) {
+    match icon {
+        TileIcon::Glyph(glyph) => {
+            let colour = if selected { palette.accent } else { palette.icon };
+            paint_icon(ui, *glyph, centre, side, colour);
+        }
+        TileIcon::Picture(texture) => {
+            let place = Rect::from_center_size(centre, vec2(side, side));
+            egui::Image::from_texture(texture)
+                .fit_to_exact_size(place.size())
+                .maintain_aspect_ratio(true)
+                .paint_at(ui, place);
+        }
+    }
+}
+
+/// The indicator box at the end of the tile, checked when the tile is selected. Returns where
+/// it lies.
+fn paint_indicator(ui: &Ui, tile: Rect, selected: bool, palette: &Palette) -> Rect {
+    let side = du(dim::ICON_LARGE);
+    let corner = pos2(
+        tile.right() - du(dim::GUTTER) - side,
+        tile.center().y - side / 2.0,
+    );
+    let boxed = Rect::from_min_size(corner, vec2(side, side));
+    let state = if selected {
+        ui.painter()
+            .rect_filled(boxed, 0.0, mix(palette.surface, palette.accent, 0.15));
+        paint_icon(
+            ui,
+            super::icon::CHECK,
+            boxed.center(),
+            du(dim::ICON_SMALL),
+            palette.accent,
+        );
+        ControlState::Selected
+    } else {
+        ControlState::Idle
+    };
+    let mut outline = Outline::of(state, palette);
+    outline.width = super::state::BORDER;
+    paint_border(ui, boxed, outline, &Look::IDLE, palette);
+    boxed
+}
+
 impl CheckboxGroup<'_> {
     /// Returns the index of the tile clicked.
     pub fn show(&self, ui: &mut Ui, palette: &Palette) -> Option<usize> {
@@ -166,48 +219,18 @@ impl CheckboxGroup<'_> {
             };
             if let Some(icon) = &item.icon {
                 let side = du(self.icon_size.du());
-                let centre = pos2(left + side / 2.0, rect.center().y);
-                match icon {
-                    TileIcon::Glyph(glyph) => {
-                        let colour = if selected { palette.accent } else { palette.icon };
-                        paint_icon(ui, *glyph, centre, side, colour);
-                    }
-                    TileIcon::Picture(texture) => {
-                        let place = Rect::from_center_size(centre, vec2(side, side));
-                        egui::Image::from_texture(texture)
-                            .fit_to_exact_size(place.size())
-                            .maintain_aspect_ratio(true)
-                            .paint_at(ui, place);
-                    }
-                }
+                paint_tile_icon(
+                    ui,
+                    icon,
+                    pos2(left + side / 2.0, rect.center().y),
+                    side,
+                    selected,
+                    palette,
+                );
                 left += side + du(dim::GUTTER);
             }
-
-            let side = du(dim::ICON_LARGE);
-            let mut right = rect.right() - du(dim::GUTTER);
-            let boxed =
-                Rect::from_min_size(pos2(right - side, rect.center().y - side / 2.0), vec2(side, side));
-            if selected {
-                ui.painter()
-                    .rect_filled(boxed, 0.0, mix(palette.surface, palette.accent, 0.15));
-                paint_icon(
-                    ui,
-                    super::icon::CHECK,
-                    boxed.center(),
-                    du(dim::ICON_SMALL),
-                    palette.accent,
-                );
-            }
-            let box_state = if selected {
-                ControlState::Selected
-            } else {
-                ControlState::Idle
-            };
-            let mut outline = Outline::of(box_state, palette);
-            outline.width = super::state::BORDER;
-            paint_border(ui, boxed, outline, &Look::IDLE, palette);
-            right = boxed.left() - du(dim::GUTTER);
-
+            let boxed = paint_indicator(ui, rect, selected, palette);
+            let mut right = boxed.left() - du(dim::GUTTER);
             if let Some(count) = item.count {
                 let size = counter_size(ui, count, self.counter_max);
                 let badge = Rect::from_min_size(pos2(right - size.x, rect.center().y - size.y / 2.0), size);
