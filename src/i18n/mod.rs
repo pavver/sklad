@@ -2,6 +2,8 @@
 //! language is a build error, not an empty place on screen.
 
 mod en;
+mod fr;
+mod ru;
 mod uk;
 
 use std::fs;
@@ -14,6 +16,8 @@ use crate::remove::Failure;
 pub enum Lang {
     Uk,
     En,
+    Fr,
+    Ru,
 }
 
 impl Lang {
@@ -22,6 +26,8 @@ impl Lang {
         match self {
             Lang::Uk => "uk",
             Lang::En => "en",
+            Lang::Fr => "fr",
+            Lang::Ru => "ru",
         }
     }
 
@@ -29,11 +35,13 @@ impl Lang {
         match self {
             Lang::Uk => &uk::TEXT,
             Lang::En => &en::TEXT,
+            Lang::Fr => &fr::TEXT,
+            Lang::Ru => &ru::TEXT,
         }
     }
 
     /// Every language with a catalogue, in the order of the language choice.
-    pub const ALL: [Lang; 2] = [Lang::Uk, Lang::En];
+    pub const ALL: [Lang; 4] = [Lang::Uk, Lang::En, Lang::Fr, Lang::Ru];
 
     /// The name in the language itself, then in English, so a search finds it either way.
     /// English needs no second name.
@@ -41,6 +49,8 @@ impl Lang {
         match self {
             Lang::Uk => "Українська (Ukrainian)",
             Lang::En => "English",
+            Lang::Fr => "Français (French)",
+            Lang::Ru => "Русский (Russian)",
         }
     }
 
@@ -48,6 +58,8 @@ impl Lang {
         match code.trim() {
             "uk" => Some(Lang::Uk),
             "en" => Some(Lang::En),
+            "fr" => Some(Lang::Fr),
+            "ru" => Some(Lang::Ru),
             _ => None,
         }
     }
@@ -287,6 +299,8 @@ mod tests {
         assert_eq!(Lang::of_locale("uk_UA.UTF-8"), Lang::Uk);
         assert_eq!(Lang::of_locale("uk:en_US"), Lang::Uk);
         assert_eq!(Lang::of_locale("en_GB.UTF-8"), Lang::En);
+        assert_eq!(Lang::of_locale("fr_CA.UTF-8"), Lang::Fr);
+        assert_eq!(Lang::of_locale("ru_RU.UTF-8"), Lang::Ru);
         assert_eq!(Lang::of_locale("de_DE.UTF-8"), Lang::En);
         assert_eq!(Lang::of_locale("C"), Lang::En);
         assert_eq!(Lang::of_locale(""), Lang::En);
