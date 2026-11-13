@@ -178,71 +178,60 @@ impl DataTable<'_> {
 
     fn header(&self, ui: &mut Ui, rect: Rect, spans: &[(f32, f32)], palette: &Palette, events: &mut Events) {
         ui.painter().rect_filled(rect, 0.0, palette.surface_alt);
-        let arrow = du(3.5);
         for (index, (column, (left, right))) in self.columns.iter().zip(spans).enumerate() {
             let cell = Rect::from_x_y_ranges(*left..=*right, rect.y_range());
-            let sorted = self
-                .sorting
-                .and_then(|(at, direction)| (at == index).then_some(direction));
-            let mut hover = 0.0;
-            if column.sortable {
-                let response = ui.interact(cell, self.id.with(("sort", index)), Sense::click());
-                let label = column.title;
-                response
-                    .widget_info(|| WidgetInfo::selected(egui::Role::Button, true, sorted.is_some(), label));
-                hover = hover_amount(ui, &response);
-                let response = response.on_hover_cursor(CursorIcon::PointingHand);
-                if response.clicked() {
-                    events.sorting = Some(next_sorting(self.sorting, index));
-                }
-                paint_focus_ring(ui, &response, cell, palette);
-            }
-            let content = cell.shrink2(vec2(CELL_PAD, 0.0));
-            let room = (content.width() - arrow - du(dim::PAD_TIGHT)).max(0.0);
-            let title = column.title.to_uppercase();
-            let label = truncated(ui, text(title, Type::Caption, palette.text_secondary), room);
-            let label_width = label.size().x;
-            let align = if column.numeric { Align::Max } else { Align::Min };
-            let text_rect = if column.numeric {
-                Rect::from_min_max(
-                    content.min,
-                    pos2(content.right() - arrow - du(dim::PAD_TIGHT), content.bottom()),
-                )
-            } else {
-                content
-            };
-            paint_aligned(ui, text_rect, label, align, palette.text_secondary);
-            let arrow_x = if column.numeric {
-                content.right() - arrow / 2.0
-            } else {
-                content.left() + label_width + du(dim::PAD_TIGHT) + arrow / 2.0
-            };
-            let centre = pos2(arrow_x, cell.center().y);
-            match sorted {
-                Some(direction) => {
-                    let glyph = match direction {
-                        Direction::Ascending => icon::ARROW_UPWARD,
-                        Direction::Descending => icon::ARROW_DOWNWARD,
-                    };
-                    paint_icon(ui, glyph, centre, arrow, palette.accent);
-                }
-                None if hover > 0.0 => {
-                    paint_icon(
-                        ui,
-                        icon::ARROW_UPWARD,
-                        centre,
-                        arrow,
-                        tint(palette.icon, 0.5 * hover),
-                    );
-                }
-                None => {}
-            }
+            self.header_cell(ui, index, column, cell, palette, events);
         }
         ui.painter().hline(
             rect.x_range(),
             rect.bottom() - BORDER / 2.0,
             Stroke::new(BORDER, palette.border),
         );
+    }
+
+    /// One column title, which sorts the column when it can, with the arrow of its order.
+    fn header_cell(
+        &self,
+        ui: &mut Ui,
+        index: usize,
+        column: &Column<'_>,
+        cell: Rect,
+        palette: &Palette,
+        events: &mut Events,
+    ) {
+        let sorted = self
+            .sorting
+            .and_then(|(at, direction)| (at == index).then_some(direction));
+        let hover = if column.sortable {
+            let response = ui.interact(cell, self.id.with(("sort", index)), Sense::click());
+            let label = column.title;
+            response.widget_info(|| WidgetInfo::selected(egui::Role::Button, true, sorted.is_some(), label));
+            let hover = hover_amount(ui, &response);
+            let response = response.on_hover_cursor(CursorIcon::PointingHand);
+            if response.clicked() {
+                events.sorting = Some(next_sorting(self.sorting, index));
+            }
+            paint_focus_ring(ui, &response, cell, palette);
+            hover
+        } else {
+            0.0
+        };
+        let arrow = du(3.5);
+        let content = cell.shrink2(vec2(CELL_PAD, 0.0));
+        let room = (content.width() - arrow - du(dim::PAD_TIGHT)).max(0.0);
+        let title = column.title.to_uppercase();
+        let label = truncated(ui, text(title, Type::Caption, palette.text_secondary), room);
+        let label_width = label.size().x;
+        let (align, text_rect, arrow_x) = if column.numeric {
+            let end = content.right() - arrow - du(dim::PAD_TIGHT);
+            let text_rect = Rect::from_min_max(content.min, pos2(end, content.bottom()));
+            (Align::Max, text_rect, content.right() - arrow / 2.0)
+        } else {
+            let arrow_x = content.left() + label_width + du(dim::PAD_TIGHT) + arrow / 2.0;
+            (Align::Min, content, arrow_x)
+        };
+        paint_aligned(ui, text_rect, label, align, palette.text_secondary);
+        paint_sort_arrow(ui, pos2(arrow_x, cell.center().y), arrow, sorted, hover, palette);
     }
 
     /// Placeholder rows over the whole body: the leading square and a line in every cell, where
@@ -348,6 +337,29 @@ impl DataTable<'_> {
         paint_focus_ring(ui, &response, rect.shrink(BORDER_THICK), palette);
         let _ = response.on_hover_cursor(CursorIcon::PointingHand);
         activated
+    }
+}
+
+/// The arrow of the order a column is sorted in, or a faint up arrow on a hovered column.
+fn paint_sort_arrow(
+    ui: &Ui,
+    centre: egui::Pos2,
+    size: f32,
+    sorted: Option<Direction>,
+    hover: f32,
+    palette: &Palette,
+) {
+    match sorted {
+        Some(Direction::Ascending) => paint_icon(ui, icon::ARROW_UPWARD, centre, size, palette.accent),
+        Some(Direction::Descending) => paint_icon(ui, icon::ARROW_DOWNWARD, centre, size, palette.accent),
+        None if hover > 0.0 => paint_icon(
+            ui,
+            icon::ARROW_UPWARD,
+            centre,
+            size,
+            tint(palette.icon, 0.5 * hover),
+        ),
+        None => {}
     }
 }
 
