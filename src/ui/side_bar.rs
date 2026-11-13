@@ -95,14 +95,7 @@ impl App {
     /// One group of filters: a `Collapsible` holding a `CheckboxGroup`, each tile with the number
     /// choosing it would show. The header counts the filters of the group that are on, so a
     /// closed group still says it filters. `key` names the group whatever the language.
-    fn facets(
-        &mut self,
-        ui: &mut Ui,
-        key: &str,
-        title: &str,
-        facets: &[Facet],
-        palette: &Palette,
-    ) {
+    fn facets(&mut self, ui: &mut Ui, key: &str, title: &str, facets: &[Facet], palette: &Palette) {
         if facets.is_empty() {
             return;
         }
