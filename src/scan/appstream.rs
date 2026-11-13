@@ -81,91 +81,106 @@ enum Field {
     Developer,
 }
 
+impl Field {
+    /// The field an element opens, from its name and where it sits: `path` holds the elements
+    /// around it, the root first.
+    fn of(tag: &BytesStart<'_>, name: &[u8], path: &[Vec<u8>]) -> Option<Field> {
+        let depth = path.len();
+        let in_description = || path.iter().any(|outer| outer == b"description");
+        match name {
+            b"summary" if depth == 1 => Some(Field::Summary),
+            b"p" if in_description() && depth <= 3 => Some(Field::Paragraph),
+            b"li" if in_description() => Some(Field::ListEntry),
+            b"project_license" if depth == 1 => Some(Field::License),
+            b"url" if depth == 1 && attribute_is(tag, b"type", b"homepage") => Some(Field::Homepage),
+            b"name" if path.last().is_some_and(|parent| parent == b"developer") => Some(Field::Developer),
+            b"developer_name" if depth == 1 => Some(Field::Developer),
+            _ => None,
+        }
+    }
+}
+
+/// The field being collected: what it is, its language, and the element that closes it.
+struct Open {
+    field: Field,
+    lang: Lang,
+    tag: Vec<u8>,
+}
+
+/// What the reading has gathered so far.
+#[derive(Default)]
+struct Gathered {
+    info: Metainfo,
+    description: Text,
+    summary: Text,
+}
+
+impl Gathered {
+    /// Keeps the text of a closed field, unless it is empty or in another language.
+    fn keep(&mut self, open: Open, text: String) {
+        if open.lang == Lang::Foreign || text.is_empty() {
+            return;
+        }
+        let local = open.lang == Lang::Local;
+        match open.field {
+            Field::Summary => self.summary.push(local, text),
+            Field::Paragraph => self.description.push(local, text),
+            Field::ListEntry => self.description.push(local, format!("- {text}")),
+            Field::License => self.info.license = Some(text),
+            Field::Homepage => self.info.homepage = Some(text),
+            Field::Developer => {
+                self.info.developer.get_or_insert(text);
+            }
+        }
+    }
+
+    fn finish(self) -> Metainfo {
+        Metainfo {
+            description: self.description.joined(),
+            summary: self.summary.joined(),
+            ..self.info
+        }
+    }
+}
+
 pub fn parse(xml: &str, language: &str) -> Option<Metainfo> {
     let mut reader = Reader::from_str(xml);
-    let mut info = Metainfo::default();
-    let mut description = Text::default();
-    let mut summary = Text::default();
+    let mut gathered = Gathered::default();
     let mut path: Vec<Vec<u8>> = Vec::new();
-    let mut open: Option<(Field, Lang)> = None;
+    let mut open: Option<Open> = None;
     let mut buffer = String::new();
-
     loop {
         match reader.read_event().ok()? {
             Event::Start(tag) => {
                 let name = tag.name().as_ref().to_vec();
-                let depth = path.len();
-                let parent = path.last().map(Vec::as_slice);
-                let lang = language_of(&tag, language);
-                let field = match name.as_slice() {
-                    b"summary" if depth == 1 => Some(Field::Summary),
-                    b"p" if path.iter().any(|p| p == b"description") && depth <= 3 => Some(Field::Paragraph),
-                    b"li" if path.iter().any(|p| p == b"description") => Some(Field::ListEntry),
-                    b"project_license" if depth == 1 => Some(Field::License),
-                    b"url" if depth == 1 && attribute_is(&tag, b"type", b"homepage") => Some(Field::Homepage),
-                    b"name" if parent == Some(b"developer") => Some(Field::Developer),
-                    b"developer_name" if depth == 1 => Some(Field::Developer),
-                    _ => None,
-                };
-                if let Some(field) = field.filter(|_| open.is_none()) {
-                    open = Some((field, lang));
+                if open.is_none()
+                    && let Some(field) = Field::of(&tag, &name, &path)
+                {
+                    let lang = language_of(&tag, language);
+                    open = Some(Open {
+                        field,
+                        lang,
+                        tag: name.clone(),
+                    });
                     buffer.clear();
                 }
                 path.push(name);
             }
-            Event::Text(text) => {
-                if open.is_some() {
-                    buffer.push_str(&text.decode().ok()?);
-                }
-            }
-            Event::GeneralRef(entity) => {
-                if open.is_some() {
-                    let name = entity.decode().ok()?;
-                    let resolved = quick_xml::escape::resolve_xml_entity(&name);
-                    buffer.push_str(resolved.unwrap_or_default());
-                }
+            Event::Text(text) if open.is_some() => buffer.push_str(&text.decode().ok()?),
+            Event::GeneralRef(entity) if open.is_some() => {
+                let name = entity.decode().ok()?;
+                buffer.push_str(quick_xml::escape::resolve_xml_entity(&name).unwrap_or_default());
             }
             Event::End(tag) => {
-                let name = tag.name().as_ref().to_vec();
                 path.pop();
-                let closes = matches!(
-                    (open.map(|(field, _)| field), name.as_slice()),
-                    (Some(Field::Summary), b"summary")
-                        | (Some(Field::Paragraph), b"p")
-                        | (Some(Field::ListEntry), b"li")
-                        | (Some(Field::License), b"project_license")
-                        | (Some(Field::Homepage), b"url")
-                        | (Some(Field::Developer), b"name" | b"developer_name")
-                );
-                if !closes {
-                    continue;
-                }
-                let Some((field, lang)) = open.take() else {
-                    continue;
-                };
-                let text = buffer.split_whitespace().collect::<Vec<_>>().join(" ");
-                if lang == Lang::Foreign || text.is_empty() {
-                    continue;
-                }
-                let local = lang == Lang::Local;
-                match field {
-                    Field::Summary => summary.push(local, text),
-                    Field::Paragraph => description.push(local, text),
-                    Field::ListEntry => description.push(local, format!("- {text}")),
-                    Field::License => info.license = Some(text),
-                    Field::Homepage => info.homepage = Some(text),
-                    Field::Developer => {
-                        info.developer.get_or_insert(text);
-                    }
+                if let Some(closed) = open.take_if(|open| open.tag == tag.name().as_ref()) {
+                    gathered.keep(closed, buffer.split_whitespace().collect::<Vec<_>>().join(" "));
                 }
             }
-            Event::Eof => break,
+            Event::Eof => return Some(gathered.finish()),
             _ => {}
         }
     }
-    info.description = description.joined();
-    info.summary = summary.joined();
-    Some(info)
 }
 
 #[cfg(test)]
