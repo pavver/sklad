@@ -645,6 +645,34 @@ fn search_narrows_the_list() {
 }
 
 #[test]
+fn the_clear_button_and_escape_empty_the_search() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    let field = harness.get_by_role(Role::TextInput);
+    field.focus();
+    field.type_text("редактор");
+    settle(&mut harness);
+    assert!(!has_row(&harness, "Програвач"));
+    harness
+        .get(By::new().role(Role::Button).label("Очистити пошук"))
+        .click();
+    settle(&mut harness);
+    assert!(has_row(&harness, "Програвач"), "the whole list is back");
+    assert!(
+        harness
+            .query(By::new().role(Role::Button).label("Очистити пошук"))
+            .is_none()
+    );
+
+    harness.get_by_role(Role::TextInput).type_text("редактор");
+    settle(&mut harness);
+    assert!(!has_row(&harness, "Програвач"), "typed again");
+    harness.key_press(eframe::egui::Key::Escape);
+    settle(&mut harness);
+    assert!(has_row(&harness, "Програвач"), "Escape empties the field too");
+}
+
+#[test]
 fn a_search_that_finds_nothing_says_so_in_the_table() -> Result<(), String> {
     let mut harness = window(FakeBackend::new(Outcome::Done));
     settle(&mut harness);

@@ -20,6 +20,17 @@ pub struct SearchField<'a> {
 
 impl SearchField<'_> {
     /// Draws the field over `query`. Returns the query when it is to be reported.
+    /// The clear button at the end of a field with text. Returns whether it was pressed.
+    fn clear_button(&self, ui: &Ui, rect: Rect, width: f32, palette: &Palette) -> bool {
+        let cell = Rect::from_min_max(pos2(rect.right() - width, rect.top()), rect.max);
+        let clear = ui.interact(cell, self.id.with("clear"), Sense::click());
+        clear.widget_info(|| WidgetInfo::labeled(egui::Role::Button, true, self.clear_label));
+        let hover = hover_amount(ui, &clear);
+        let colour = mix(palette.icon_secondary, palette.icon, hover);
+        paint_icon(ui, icon::CLOSE, cell.center(), du(dim::ICON_SMALL), colour);
+        clear.on_hover_cursor(CursorIcon::PointingHand).clicked()
+    }
+
     pub fn show(&self, ui: &mut Ui, query: &mut String, palette: &Palette) -> Option<String> {
         let height = du(self.height);
         let (rect, _) = ui.allocate_exact_size(vec2(self.width, height), Sense::hover());
@@ -33,8 +44,16 @@ impl SearchField<'_> {
                 rect.bottom(),
             ),
         );
+        // A field with text keeps Escape, which clears it; an empty one lets Escape leave it.
+        let keys = egui::EventFilter {
+            horizontal_arrows: true,
+            vertical_arrows: true,
+            escape: !query.is_empty(),
+            ..Default::default()
+        };
         let edit = TextEdit::singleline(query)
             .id(self.id)
+            .event_filter(keys)
             .hint_text(text(self.placeholder, Type::Body, palette.text_disabled))
             .font(Type::Body.font())
             .text_color(palette.text_primary)
@@ -64,20 +83,11 @@ impl SearchField<'_> {
         let glyph = mix(palette.text_secondary, palette.accent, lit);
         paint_icon(ui, icon::SEARCH, slot.center(), du(dim::ICON_LARGE), glyph);
 
-        if clear_width > 0.0 {
-            let cell = Rect::from_min_max(pos2(rect.right() - clear_width, rect.top()), rect.max);
-            let clear = ui.interact(cell, self.id.with("clear"), Sense::click());
-            clear.widget_info(|| WidgetInfo::labeled(egui::Role::Button, true, self.clear_label));
-            let hover = hover_amount(ui, &clear);
-            let colour = mix(palette.icon_secondary, palette.icon, hover);
-            paint_icon(ui, icon::CLOSE, cell.center(), du(dim::ICON_SMALL), colour);
-            let clear = clear.on_hover_cursor(CursorIcon::PointingHand);
-            if clear.clicked() {
-                query.clear();
-                changed = true;
-                report_now = true;
-                response.request_focus();
-            }
+        if clear_width > 0.0 && self.clear_button(ui, rect, clear_width, palette) {
+            query.clear();
+            changed = true;
+            report_now = true;
+            response.request_focus();
         }
 
         let state = if focused {
