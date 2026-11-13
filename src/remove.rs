@@ -2,7 +2,7 @@
 
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Component, Path};
-use std::process::{Command, Stdio};
+use std::process::{Command, Output, Stdio};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
 
@@ -281,6 +281,32 @@ pub trait Backend: Send + Sync {
 
 pub struct SystemBackend;
 
+/// The dry run of a removal: it prints what would go and changes nothing.
+fn preview_command(system: PackageSystem) -> Command {
+    let (program, args): (&str, &[&str]) = match system {
+        PackageSystem::Pacman => ("pacman", &["-Rp", "--print-format", "%n"]),
+        PackageSystem::Dpkg => ("apt-get", &["-s", "remove"]),
+    };
+    let mut command = Command::new(program);
+    command.args(args);
+    command
+}
+
+/// The packages a dry run lists, in order of name, or what it said when it refused.
+fn preview_result(system: PackageSystem, output: std::io::Result<Output>) -> Result<Vec<String>, String> {
+    let output = output.map_err(|error| error.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut list = match system {
+        PackageSystem::Pacman => text.lines().map(str::to_owned).collect(),
+        PackageSystem::Dpkg => parse_apt_simulation(&text),
+    };
+    list.sort();
+    Ok(list)
+}
+
 fn forward(stream: impl Read + Send + 'static, sender: Sender<Event>) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         for line in BufReader::new(stream).lines().map_while(Result::ok) {
@@ -334,37 +360,8 @@ pub fn run_streaming(spec: &Spec) -> Receiver<Event> {
 impl Backend for SystemBackend {
     /// `pacman --print` and `apt-get -s` change nothing and need no privileges.
     fn preview(&self, system: PackageSystem, names: &[String]) -> Result<Vec<String>, String> {
-        let mut command = match system {
-            PackageSystem::Pacman => {
-                let mut command = Command::new("pacman");
-                command.args(["-Rp", "--print-format", "%n"]);
-                command
-            }
-            PackageSystem::Dpkg => {
-                let mut command = Command::new("apt-get");
-                command.args(["-s", "remove"]);
-                command
-            }
-        };
-        let output = command
-            .args(names)
-            .env("LC_ALL", "C")
-            .output()
-            .map_err(|error| error.to_string())?;
-        if output.status.success() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            Ok(match system {
-                PackageSystem::Pacman => {
-                    let mut list: Vec<String> = text.lines().map(str::to_owned).collect();
-                    list.sort();
-                    list
-                }
-                PackageSystem::Dpkg => parse_apt_simulation(&text),
-            })
-        } else {
-            let text = String::from_utf8_lossy(&output.stderr);
-            Err(text.trim().to_owned())
-        }
+        let output = preview_command(system).args(names).env("LC_ALL", "C").output();
+        preview_result(system, output)
     }
 
     fn run(&self, spec: &Spec) -> Receiver<Event> {
@@ -375,7 +372,50 @@ impl Backend for SystemBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::process::ExitStatusExt;
     use std::path::PathBuf;
+
+    fn finished(code: i32, stdout: &str, stderr: &str) -> std::io::Result<Output> {
+        Ok(Output {
+            status: std::process::ExitStatus::from_raw(code << 8),
+            stdout: stdout.as_bytes().to_vec(),
+            stderr: stderr.as_bytes().to_vec(),
+        })
+    }
+
+    #[test]
+    fn a_dry_run_lists_what_would_go_in_order_of_name() {
+        let pacman = preview_result(PackageSystem::Pacman, finished(0, "gimp\nbabl\n", ""));
+        assert_eq!(pacman, Ok(words(&["babl", "gimp"])));
+        let apt = finished(0, "Remv gimp [2.10]\nInst gawk (1:5.2)\nConf x\n", "");
+        assert_eq!(
+            preview_result(PackageSystem::Dpkg, apt),
+            Ok(words(&["+gawk", "gimp"]))
+        );
+    }
+
+    #[test]
+    fn a_refused_or_missing_dry_run_says_why() {
+        let refused = finished(1, "", "error: target not found: nope\n");
+        assert_eq!(
+            preview_result(PackageSystem::Pacman, refused),
+            Err("error: target not found: nope".to_owned())
+        );
+        let missing = Err(std::io::Error::from(std::io::ErrorKind::NotFound));
+        assert!(preview_result(PackageSystem::Dpkg, missing).is_err());
+    }
+
+    #[test]
+    fn the_dry_run_changes_nothing() {
+        let args = |system| -> Vec<String> {
+            preview_command(system)
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect()
+        };
+        assert_eq!(args(PackageSystem::Pacman), ["-Rp", "--print-format", "%n"]);
+        assert_eq!(args(PackageSystem::Dpkg), ["-s", "remove"]);
+    }
 
     fn words(list: &[&str]) -> Vec<String> {
         list.iter().map(|word| (*word).to_owned()).collect()
