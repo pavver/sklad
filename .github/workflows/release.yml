@@ -30,13 +30,16 @@ jobs:
       - name: Signed apt repository
         env:
           GPG_KEY: ${{ secrets.PACKAGER_GPG_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # apt refuses an unsigned repository, so an unsigned build stops here.
           test -n "$GPG_KEY" || { echo "The PACKAGER_GPG_KEY secret is missing"; exit 1; }
-          apt-get update -qq && apt-get install -y -qq apt-utils gnupg
+          apt-get update -qq && apt-get install -y -qq apt-utils gnupg gh
           echo "$GPG_KEY" | gpg --batch --import
           mkdir -p repository
           cp target/debian/*.deb repository/
+          # Earlier versions stay, so apt with an index older than this release still finds its file.
+          scripts/previous_releases.sh '*.deb' repository
           scripts/apt_repository.sh repository
       - uses: actions/upload-artifact@v4
         with:
@@ -72,6 +75,8 @@ jobs:
             gpg --batch --yes --detach-sign --no-armor "$file"
           done
       - name: Repository database
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p pages/x86_64
           cp build/*.pkg.tar.zst* pages/x86_64/
@@ -81,6 +86,10 @@ jobs:
           for link in sklad.db sklad.files sklad.db.sig sklad.files.sig; do
             if [ -L "$link" ]; then cp --remove-destination "$(readlink "$link")" "$link"; fi
           done
+          # Earlier versions stay beside the database, which names only this one, so pacman with an
+          # older database still finds its file; repo-add never sees them, so it cannot step back.
+          cd "$GITHUB_WORKSPACE"
+          scripts/previous_releases.sh '*.pkg.tar.zst*' pages/x86_64
       - uses: actions/download-artifact@v4
         with:
           name: debian
@@ -97,7 +106,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          gh release create "$GITHUB_REF_NAME" build/*.pkg.tar.zst* pages/debian/*.deb \
+          # Only this version: the folder also holds the earlier ones.
+          gh release create "$GITHUB_REF_NAME" build/*.pkg.tar.zst* "pages/debian/sklad_${GITHUB_REF_NAME#v}-"*.deb \
             --title "Sklad ${GITHUB_REF_NAME#v}" --generate-notes --verify-tag
       - uses: actions/upload-pages-artifact@v3
         with:
