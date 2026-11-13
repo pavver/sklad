@@ -155,13 +155,7 @@ impl Combobox<'_> {
             memory.open = true;
             memory.reveal = Some(false);
         }
-        let pointer_on_popup = memory
-            .popup
-            .zip(ui.ctx().pointer_latest_pos())
-            .is_some_and(|(popup, at)| popup.contains(at));
-        let released_elsewhere =
-            memory.open && !response.has_focus() && ui.input(|input| input.pointer.any_released());
-        if (response.lost_focus() || released_elsewhere) && !pointer_on_popup {
+        if left_the_field(ui, memory, response) {
             self.settle(memory, committed, chosen);
         }
     }
@@ -304,47 +298,16 @@ impl Combobox<'_> {
                     .show(&mut child, |ui| {
                         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                         if matches.is_empty() {
-                            let (cell, _) = ui.allocate_exact_size(vec2(body.width(), row), Sense::hover());
-                            let label = galley(ui, text(self.no_matches, Type::Body, palette.text_secondary));
-                            paint_aligned(
-                                ui,
-                                cell.shrink2(vec2(du(dim::PAD_CARD), 0.0)),
-                                label,
-                                egui::Align::Min,
-                                palette.text_secondary,
-                            );
+                            self.no_matches_row(ui, body.width(), palette);
                         }
+                        let rows = OptionRows {
+                            width: body.width(),
+                            selected,
+                            query: &query,
+                            reveal,
+                        };
                         for (position, &index) in matches.iter().enumerate() {
-                            let (cell, response) =
-                                ui.allocate_exact_size(vec2(body.width(), row), Sense::click());
-                            if response.hovered() && ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO) {
-                                memory.active = position;
-                            }
-                            let is_selected = index == selected;
-                            let background = if position == memory.active {
-                                palette.pressed
-                            } else if is_selected {
-                                mix(palette.surface, palette.accent, 0.08)
-                            } else {
-                                palette.surface
-                            };
-                            ui.painter().rect_filled(cell, 0.0, background);
-                            paint_option(ui, cell, &self.options[index], &query, is_selected, palette);
-                            response.widget_info(|| {
-                                WidgetInfo::selected(
-                                    egui::Role::ListBoxOption,
-                                    true,
-                                    is_selected,
-                                    &self.options[index],
-                                )
-                            });
-                            if position == memory.active
-                                && let Some(centre) = reveal
-                            {
-                                let align = if centre { Some(egui::Align::Center) } else { None };
-                                ui.scroll_to_rect(cell, align);
-                            }
-                            if response.on_hover_cursor(CursorIcon::PointingHand).clicked() {
+                            if self.option_row(ui, position, index, &rows, memory, palette) {
                                 clicked = Some(index);
                             }
                         }
@@ -360,6 +323,69 @@ impl Combobox<'_> {
         memory.popup = Some(area.response.rect);
         clicked
     }
+
+    /// The row that says nothing matches the text.
+    fn no_matches_row(&self, ui: &mut Ui, width: f32, palette: &Palette) {
+        let (cell, _) = ui.allocate_exact_size(vec2(width, du(dim::ROW_CONTROL)), Sense::hover());
+        let label = galley(ui, text(self.no_matches, Type::Body, palette.text_secondary));
+        let place = cell.shrink2(vec2(du(dim::PAD_CARD), 0.0));
+        paint_aligned(ui, place, label, egui::Align::Min, palette.text_secondary);
+    }
+
+    /// One option of the list: the pointer moving over it makes it active. Returns whether it
+    /// was clicked.
+    fn option_row(
+        &self,
+        ui: &mut Ui,
+        position: usize,
+        index: usize,
+        rows: &OptionRows<'_>,
+        memory: &mut Memory,
+        palette: &Palette,
+    ) -> bool {
+        let (cell, response) = ui.allocate_exact_size(vec2(rows.width, du(dim::ROW_CONTROL)), Sense::click());
+        if response.hovered() && ui.input(|i| i.pointer.delta() != egui::Vec2::ZERO) {
+            memory.active = position;
+        }
+        let active = position == memory.active;
+        let is_selected = index == rows.selected;
+        let background = if active {
+            palette.pressed
+        } else if is_selected {
+            mix(palette.surface, palette.accent, 0.08)
+        } else {
+            palette.surface
+        };
+        ui.painter().rect_filled(cell, 0.0, background);
+        let option = &self.options[index];
+        paint_option(ui, cell, option, rows.query, is_selected, palette);
+        response.widget_info(|| WidgetInfo::selected(egui::Role::ListBoxOption, true, is_selected, option));
+        if active && let Some(centre) = rows.reveal {
+            ui.scroll_to_rect(cell, centre.then_some(egui::Align::Center));
+        }
+        response.on_hover_cursor(CursorIcon::PointingHand).clicked()
+    }
+}
+
+/// Whether the person left the field this frame: focus went elsewhere, or a press was released
+/// outside an open list. A press on the list itself does not count.
+fn left_the_field(ui: &Ui, memory: &Memory, response: &egui::Response) -> bool {
+    let on_popup = memory
+        .popup
+        .zip(ui.ctx().pointer_latest_pos())
+        .is_some_and(|(popup, at)| popup.contains(at));
+    let released_elsewhere =
+        memory.open && !response.has_focus() && ui.input(|input| input.pointer.any_released());
+    (response.lost_focus() || released_elsewhere) && !on_popup
+}
+
+/// What every option row of one list shares.
+struct OptionRows<'a> {
+    width: f32,
+    selected: usize,
+    query: &'a str,
+    /// Scroll the active option into view, in the middle when `Some(true)`.
+    reveal: Option<bool>,
 }
 
 /// The option text, with the part that matches the typed text in `accent` bold.
