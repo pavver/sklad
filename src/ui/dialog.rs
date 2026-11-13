@@ -250,38 +250,8 @@ impl Dialog {
     }
 
     fn other_section(&self, ui: &mut Ui, palette: &Palette) {
-        let content = match &self.item.removal {
-            Removal::Package(_) | Removal::Unavailable { .. } => return,
-            Removal::Manager { name, .. } => (self.text.through_manager)(name),
-            Removal::Flatpak { .. } => self.text.flatpak_note.to_owned(),
-            Removal::Steam { .. } => self.text.steam_note.to_owned(),
-            Removal::Cargo { .. } => self.text.cargo_note.to_owned(),
-            Removal::Docker { parts } => {
-                let list = parts
-                    .iter()
-                    .map(|part| {
-                        format!(
-                            "{} {}",
-                            super::detail::docker_part(part.object, self.text),
-                            part.name
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                format!("{}\n{list}", (self.text.through_manager)("Docker"))
-            }
-            Removal::Files { paths, access } => {
-                let list = paths
-                    .iter()
-                    .map(|path| path.display().to_string())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let intro = match access {
-                    Access::User => self.text.files_go_to_bin,
-                    Access::Root => self.text.files_go_for_good,
-                };
-                format!("{intro}\n{list}")
-            }
+        let Some(content) = other_note(&self.item.removal, self.text) else {
+            return;
         };
         wrapped(ui, content, palette);
         if is_irreversible(&self.item) {
@@ -410,5 +380,74 @@ impl Dialog {
             }
             None => None,
         }
+    }
+}
+
+/// What the dialog says about a removal that is not one of the system packages: who removes
+/// it, and what goes. `None` for system packages and for what cannot be removed.
+fn other_note(removal: &Removal, text: &Text) -> Option<String> {
+    Some(match removal {
+        Removal::Package(_) | Removal::Unavailable { .. } => return None,
+        Removal::Manager { name, .. } => (text.through_manager)(name),
+        Removal::Flatpak { .. } => text.flatpak_note.to_owned(),
+        Removal::Steam { .. } => text.steam_note.to_owned(),
+        Removal::Cargo { .. } => text.cargo_note.to_owned(),
+        Removal::Docker { parts } => {
+            let list = lines(
+                parts
+                    .iter()
+                    .map(|part| format!("{} {}", super::detail::docker_part(part.object, text), part.name)),
+            );
+            format!("{}\n{list}", (text.through_manager)("Docker"))
+        }
+        Removal::Files { paths, access } => {
+            let intro = match access {
+                Access::User => text.files_go_to_bin,
+                Access::Root => text.files_go_for_good,
+            };
+            format!(
+                "{intro}\n{}",
+                lines(paths.iter().map(|path| path.display().to_string()))
+            )
+        }
+    })
+}
+
+fn lines(items: impl Iterator<Item = String>) -> String {
+    items.collect::<Vec<_>>().join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::Lang;
+    use crate::model::{DockerObject, DockerPart};
+    use std::path::PathBuf;
+
+    #[test]
+    fn the_dialog_names_who_removes_and_what_goes() {
+        let text = Lang::En.text();
+        assert_eq!(other_note(&Removal::Unavailable { reason: String::new() }, text), None);
+        let files = Removal::Files {
+            paths: vec![PathBuf::from("/home/a/x"), PathBuf::from("/home/a/y")],
+            access: Access::User,
+        };
+        assert_eq!(
+            other_note(&files, text).as_deref(),
+            Some("The files will be moved to the bin:\n/home/a/x\n/home/a/y")
+        );
+        let part = |object, name: &str| DockerPart {
+            object,
+            id: name.to_owned(),
+            name: name.to_owned(),
+            size: None,
+        };
+        let docker = Removal::Docker {
+            parts: vec![part(DockerObject::Container, "web"), part(DockerObject::Volume, "data")],
+        };
+        let note = other_note(&docker, text).unwrap_or_default();
+        assert!(note.starts_with("Will be removed through Docker.\n"), "{note}");
+        assert_eq!(note.lines().count(), 3, "one line per part: {note}");
+        assert!(note.ends_with(" data"), "{note}");
     }
 }
