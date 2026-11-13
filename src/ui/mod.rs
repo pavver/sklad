@@ -23,6 +23,7 @@ use crate::scan::Catalog;
 use dialog::{Dialog, Exit};
 use operator::button::IconButton;
 use operator::checkbox_group::{CheckboxGroup, GroupItem, IconSize};
+use operator::collapsible::Collapsible;
 use operator::combobox::{self, Combobox};
 use operator::content::{ChipColor, Pane, SplitPane, chip, input_chip, theme_toggle};
 use operator::feedback::{Toasts, Tone};
@@ -376,22 +377,13 @@ impl App {
         }
     }
 
-    fn group(ui: &mut Ui, title: &str, palette: &Palette) {
-        ui.add_space(du(dim::SECTION_GAP));
-        ui.horizontal(|ui| {
-            ui.add_space(du(dim::GUTTER));
-            operator::layout::section_title(ui, title, palette);
-        });
-        ui.add_space(du(dim::PAD_TIGHT));
-    }
-
-    /// One group of filters as a `CheckboxGroup`, each tile with the number choosing it would
-    /// show.
-    fn facets(&mut self, ui: &mut Ui, title: &str, facets: &[Facet], palette: &Palette) {
+    /// One group of filters: a `Collapsible` holding a `CheckboxGroup`, each tile with the number
+    /// choosing it would show. The header counts the filters of the group that are on, so a
+    /// closed group still says it filters. `key` names the group whatever the language.
+    fn facets(&mut self, ui: &mut Ui, key: &str, title: &str, facets: &[Facet], palette: &Palette) {
         if facets.is_empty() {
             return;
         }
-        Self::group(ui, title, palette);
         let text = self.text();
         let items = self
             .catalog
@@ -409,13 +401,24 @@ impl App {
                 }
             })
             .collect();
-        let group = CheckboxGroup {
-            id: Id::unique(("facets", title)),
-            items: &tiles,
-            icon_size: IconSize::Large,
+        let section = Collapsible {
+            id: Id::unique(("filter group", key)),
+            title,
+            count: tiles.iter().filter(|tile| tile.selected).count(),
             counter_max: COUNT_MAX,
+            initially_open: true,
         };
-        if let Some(index) = group.show(ui, palette) {
+        let mut clicked = None;
+        section.show(ui, palette, |ui| {
+            let group = CheckboxGroup {
+                id: Id::unique(("facets", key)),
+                items: &tiles,
+                icon_size: IconSize::Large,
+                counter_max: COUNT_MAX,
+            };
+            clicked = group.show(ui, palette);
+        });
+        if let Some(index) = clicked {
             self.view.toggle(facets[index]);
             self.refilter();
         }
@@ -440,16 +443,11 @@ impl App {
             });
         let origins = Origin::ALL.map(Facet::Origin);
         ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            Frame::new()
-                .inner_margin(egui::Margin::symmetric(du(dim::GUTTER) as i8, 0))
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    self.facets(ui, text.heading_programs, &programs, palette);
-                    self.facets(ui, text.other, &other, palette);
-                    self.facets(ui, text.heading_origin, &origins, palette);
-                    self.facets(ui, text.source_heading, &sources, palette);
-                    ui.add_space(du(dim::SECTION_GAP));
-                });
+            ui.spacing_mut().item_spacing.y = 0.0;
+            self.facets(ui, "programs", text.heading_programs, &programs, palette);
+            self.facets(ui, "other", text.other, &other, palette);
+            self.facets(ui, "origin", text.heading_origin, &origins, palette);
+            self.facets(ui, "source", text.source_heading, &sources, palette);
         });
     }
 

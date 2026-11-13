@@ -26,6 +26,7 @@ pub const ARROW_DOWNWARD: Icon = Icon::System(&ds::ARROW_DOWNWARD);
 pub const ARROW_DROP_DOWN: Icon = Icon::System(&ds::ARROW_DROP_DOWN);
 pub const ARROW_UPWARD: Icon = Icon::System(&ds::ARROW_UPWARD);
 pub const CHECK: Icon = Icon::System(&ds::CHECK);
+pub const CHEVRON_RIGHT: Icon = Icon::System(&ds::CHEVRON_RIGHT);
 pub const CHECK_CIRCLE: Icon = Icon::System(&ds::CHECK_CIRCLE);
 pub const CLOSE: Icon = Icon::System(&ds::CLOSE);
 pub const CONTENT_COPY: Icon = Icon::System(&ds::CONTENT_COPY);
@@ -137,6 +138,18 @@ fn texture(ctx: &Context, icon: Icon, pixels: u32) -> Option<TextureHandle> {
     made
 }
 
+/// Paints `icon` turned clockwise by `angle` radians about its centre.
+pub fn paint_icon_turned(ui: &Ui, icon: Icon, centre: Pos2, size: f32, colour: Color32, angle: f32) {
+    let pixels = (size * ui.ctx().pixels_per_point()).round().max(1.0) as u32;
+    if let Some(texture) = texture(ui.ctx(), icon, pixels) {
+        let rect = Rect::from_center_size(centre, vec2(size, size));
+        eframe::egui::Image::from_texture(&texture)
+            .tint(colour)
+            .rotate(angle, vec2(0.5, 0.5))
+            .paint_at(ui, rect);
+    }
+}
+
 /// Paints `icon` centred on `centre`, `size` points on a side, in `colour`.
 pub fn paint_icon(ui: &Ui, icon: Icon, centre: Pos2, size: f32, colour: Color32) {
     let pixels = (size * ui.ctx().pixels_per_point()).round().max(1.0) as u32;
@@ -157,6 +170,7 @@ mod tests {
             ARROW_DOWNWARD,
             ARROW_UPWARD,
             CHECK,
+            CHEVRON_RIGHT,
             CHECK_CIRCLE,
             CLOSE,
             CONTENT_COPY,

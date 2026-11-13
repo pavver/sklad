@@ -7,6 +7,7 @@
 pub mod button;
 pub mod checkbox_group;
 pub mod code;
+pub mod collapsible;
 pub mod combobox;
 pub mod content;
 pub mod data_table;

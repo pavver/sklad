@@ -1271,3 +1271,26 @@ fn a_wider_side_bar_narrows_the_list_and_leaves_the_card_alone() {
     let narrower = harness.get_by_role_and_label(Role::Row, "Редактор").rect();
     assert!(narrower.width() < list.width(), "the list gives the width");
 }
+
+#[test]
+fn a_group_of_filters_folds_and_unfolds() {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    let tile = By::new().role(Role::CheckBox).label("Мультимедіа");
+    assert!(harness.query(tile.clone()).is_some());
+    harness.get_by_role_and_label(Role::Button, "Програми").click();
+    settle(&mut harness);
+    shot(&mut harness, "32-folded");
+    assert!(
+        harness.query(tile.clone()).is_none(),
+        "a folded group hides its tiles"
+    );
+    assert!(
+        harness
+            .query(By::new().role(Role::CheckBox).label("Бібліотеки"))
+            .is_some()
+    );
+    harness.get_by_role_and_label(Role::Button, "Програми").click();
+    settle(&mut harness);
+    assert!(harness.query(tile).is_some());
+}
