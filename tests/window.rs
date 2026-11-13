@@ -644,6 +644,28 @@ fn search_narrows_the_list() {
     assert!(!has_row(&harness, "Програвач"));
 }
 
+#[test]
+fn a_search_that_finds_nothing_says_so_in_the_table() -> Result<(), String> {
+    let mut harness = window(FakeBackend::new(Outcome::Done));
+    settle(&mut harness);
+    let field = harness.get_by_role(Role::TextInput);
+    field.focus();
+    field.type_text("такої програми немає");
+    settle(&mut harness);
+    assert!(harness.query_by_role(Role::Row).is_none());
+    let header = harness
+        .get(By::new().role(Role::Button).label_contains("Програма"))
+        .rect();
+    let screen = harness.ctx.content_rect();
+    let body = eframe::egui::Rect::from_min_max(
+        eframe::egui::pos2(header.left(), header.bottom() + 8.0),
+        eframe::egui::pos2(header.left() + 600.0, screen.bottom() - 40.0),
+    );
+    let image = harness.render()?;
+    assert!(ink_rows(&image, body).is_some(), "the empty state is drawn");
+    Ok(())
+}
+
 /// Real data, real icons, the real `pacman -Rp`. Removal itself stays impossible: `run` only fails.
 struct ReadOnlyBackend;
 
